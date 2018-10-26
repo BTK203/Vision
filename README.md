@@ -1,5 +1,5 @@
 # Vision
-A Computer Vision repository full of code for Raspberry Pi that makes it see things with USB cameras. It is not finished.
+A Computer Vision repository full of code for Raspberry Pi that makes it see things with USB cameras. It is not finished. Only java build does stuff
 
 This repository is a heavily edited version of the starter repository provided by FIRST. Inital repository found here: https://github.com/wpilibsuite/VisionBuildSamples/
 
