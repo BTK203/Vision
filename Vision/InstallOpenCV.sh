@@ -8,7 +8,7 @@ NC='\033[0m'
 confirm = ""
 update = ""
 #make sure that the user really meant to launch script
-echo "${yellow}This script will install OpenCV for C++ and Python, along with any necessary libraries. The process may take up to three hours. Do you want to continue? [y,n]"
+echo "${yellow}This script will install OpenCV for C++ and Python, along with any necessary libraries. The process may take several hours. Do you want to continue? [y,n]"
 read confirm
 if [ "$confirm" = 'y' ];
 then
