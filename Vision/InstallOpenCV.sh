@@ -30,16 +30,16 @@ then
 	sudo apt-get --assume-yes autoremove
 	
 	echo "${blue}Installing devel tools...${NC}"
-	sudo apt-get install build-essential cmake cmake-curses-gui pkg-config
+	sudo apt-get --assume-yes install build-essential cmake cmake-curses-gui pkg-config
 	
 	echo "${green}Installing OpenCV Dependencies...${NC}"
-	sudo apt-get install libjpeg-dev
+	sudo apt-get --assume-yes install libjpeg-dev
 	
 	echo "${blue}Install libtiff5-dev${NC}"
 	sudo apt-get --assume-yes install libtiff5-dev 
 
 	echo "${blue}Install libjasper-dev${NC}"
-	sudo apt-get install libjasper-dev
+	sudo apt-get --assume-yes install libjasper-dev
 
 	echo "${blue}Install libpng12-dev${NC}"
 	sudo apt-get --assume-yes install libpng12-dev
