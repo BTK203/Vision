@@ -13,20 +13,19 @@
 #    Algorithm:                               
 #    1). Get image                          
 #    2). Threshold image                      
-#    3).              #
-#    4). Using constant color, convert to bin 
+#    3). Dilate image
+#    4). convert to bin 
 #    5). Find contours                        
-#    6). run aspect ratio test on contours    
-#    7). run intensity test on contours       
-#    8). Take remaining contour and figure    
-#         out where to aim the shooter        
+#    6). run area test on contours    
+#    7). run aspect ratio test on contours
+#    8). get center point of remaining contour (if it exists)
 #    9). Send values to other program to send 
-#         to roboRIO
+#         to roboRIO (if #8 runs)
 #
 #
 #    ____________________________________     
 #    OTHER REMARKS:                           
-#    --yeet    the big sad                    
+#    --the big sad                    
 #    ____________________________________
 
 
@@ -65,28 +64,46 @@ Devwindow = None #window where settings can be edited
 TitleLabel = None
 
 #Proccess Settings
+
+#Thread one process settings
 TARGET_COLOR_LOW = numpy.array( [0,250,0] ) #low color bound (BGR)
 TARGET_COLOR_HIGH = numpy.array( [0,255,0] ) #high color bound(BGR)
 
-THRESHOLD_LOW = 32
+THRESHOLD_LOW = 28
 THRESHOLD_HIGH = 255
 
+#Thread two process settings
+TARGET_CONTOUR_AREA_MAX = 12000
+TARGET_CONTOUR_AREA_MIN = 3000
+TARGET_CONTOUR_ASPECT_RATIO_MAX = 1.25
+TARGET_CONTOUR_ASPECT_RATIO_MIN = 0.75
+
+# --- ALL PROGRAM UTILITY VALUES --- # basically some values that arent settings that all threads might end up using
+OriginalImage = None
 
 # --- THREAD 1 UTILITY VALUES --- #
-ThreadOneOut = numpy.zeros((500,500), numpy.uint8) # thread 1 output image (as cv2 Mat (but actually as numpy array))
+Contours = None
 ThreadOneTimes = []
+
+# --- THREAD 2 UTILITY VALUES --- #
+BoxCenterX = -1
+BoxCenterY = -1
+ThreadTwoTimes = []
+
+
+# --- THREADS --- #
 
 def Thread1():
     print("Thread 1 init")
     #Thread one stuff (algorithm steps 1-5)
     global ThreadOneTimes
-    global ThreadOneOut
-
+    global Contours
+    global OriginalImage
     Binary = None
-    Contours = None
+
     while (Stream.isOpened()):
         #execute a lot
-        startTime = time.clock()
+        startTime = time.clock() # get start of loop in processor time
         
         returnVal, Binary = Stream.read()
 
@@ -94,6 +111,8 @@ def Thread1():
 
             # --- now some simple image processing ---
             #thresholding
+
+            OriginalImage = numpy.copy(Binary)
 
             if DEVMODE:
                 cv2.imshow("Take", Binary)
@@ -121,9 +140,11 @@ def Thread1():
                 cv2.waitKey(5)
             
             #contouring stuff
-            ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
             Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
-            cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
+
+            if DEVMODE:
+                ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
+                cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
 
             
             #display image
@@ -140,15 +161,49 @@ def Thread1():
             ThreadTime *= 1000 #convert to milliseconds
             ThreadOneTimes.append(ThreadTime)
 
+
         
 
 def Thread2():
     #Thread two stuff (algorithm steps 6-9)
     print("thread 2 init")
-    #Thread two doesn't do much yet...
 
+    global BoxCenterX
+    global BoxCenterY
+    #Test the contours to eliminate the ones that we dont want
+    while Stream.isOpened():
+        startTime = time.clock()
+        x,y,w,h = 0,0,0,0
+        if Contours != None:
+            localContours = numpy.copy(Contours)
+            for contour in localContours:
+                #get area & aspect ratio
+                Area = cv2.contourArea(contour)
+                x,y,w,h = cv2.boundingRect(contour)
+                AspectRatio = w/h
 
+                #test the area & aspect ratio
+                if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (Area < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
+                    #if it does not pass it is removed from the array
+                    localContours = numpy.delete(localContours, contour, axis=0)
+            #after for loop, calculate the center of the bounding box, if it is not empty
+            if(len(localContours) > 0):
+                if len(localContours) == 1:
+                    #calculate the center of the bounding box
+                    w /= 2 #the center width
+                    h /= 2 #the center height
+                    BoxCenterX = w + x
+                    BoxCenterY = h + y
+                    
+                        
+        else:
+            time.sleep(0.1) # wait for thread 1 to do its magic
 
+            ThreadTime = time.clock() - startTime
+            ThreadTime *= 1000 #convert to milliseconds
+            ThreadTwoTimes.append(ThreadTime)
+
+        
 
 #--- UTILITY METHODS ---#
 def ChangeColor(): # changes the target color range of the program. Developer mode only
@@ -168,10 +223,8 @@ def ChangeColor(): # changes the target color range of the program. Developer mo
 
     #output results
     print("Values set.")
-    print("Color High:")
-    print(TARGET_COLOR_HIGH)
-    print("Color low:")
-    print(TARGET_COLOR_LOW)
+    print("Color High:" + str(TARGET_COLOR_HIGH))
+    print("Color low:" + str(TARGET_COLOR_LOW))
     print("\r\n\r\n")
 
 def ChangeThreshold(): #changes the threshold range of the thresholding function. Developer mode only
@@ -183,48 +236,77 @@ def ChangeThreshold(): #changes the threshold range of the thresholding function
     THRESHOLD_HIGH = int(high)
     #output results
     print("Values set.")
-    print("High Threshold:")
-    print(THRESHOLD_HIGH)
-    print("Low Threshold:")
-    print(THRESHOLD_LOW)
+    print("High Threshold:" + str(THRESHOLD_HIGH))
+    print("Low Threshold:" + str(THRESHOLD_LOW))
     print("\r\n\r\n")
 
 
 def DispCurrentValues(): #displays all the current modifiable values.
     print(" --- CURRENT VALUES --- ")
-    print("Color High Bound:")
-    print(TARGET_COLOR_HIGH)
-    print("Color Low Bound:")
-    print(TARGET_COLOR_LOW)
-    print("Threshold High Bound:")
-    print(THRESHOLD_HIGH)
-    print("Threshold Low Bound:")
-    print(THRESHOLD_LOW)
+    print("Color High Bound: " + str(TARGET_COLOR_HIGH))
+    print("Color Low Bound: " + str(TARGET_COLOR_LOW))
+    print("Threshold High Bound: " + str(THRESHOLD_HIGH))
+    print("Threshold Low Bound: "+ str(THRESHOLD_LOW))
+    print("Contour Area Max: " + str(TARGET_CONTOUR_AREA_MAX))
+    print("Contour Area Min: " + str(TARGET_CONTOUR_AREA_MIN))
+    print("Aspect Ratio Max: " + str(TARGET_CONTOUR_ASPECT_RATIO_MAX))
+    print("Aspect Ratio Min: " + str(TARGET_CONTOUR_ASPECT_RATIO_MIN))
     print("\r\n\r\n")
 
 def DispTime():
     #calculate some time stats
+
+    # -- thread 1 -- #
     ThreadOneAvgTime = 0 # average time for frame to elapse
     ThreadOneMaxTime = 0 #the longest time for a frame to elapse
     ThreadOneMinTime = 10000 # I think ten seconds max is a nice bet
-    for i in ThreadOneTimes:
-        ThreadOneAvgTime += i
+    for time in ThreadOneTimes:
+        ThreadOneAvgTime += time
 
-        if i > ThreadOneMaxTime:
-            ThreadOneMaxTime = i
+        if time > ThreadOneMaxTime:
+            ThreadOneMaxTime = time
 
-        if i < ThreadOneMinTime:
-            ThreadOneMinTime = i
+        if time < ThreadOneMinTime:
+            ThreadOneMinTime = time
 
     ThreadOneAvgTime /= len(ThreadOneTimes)
-    
+
+    # -- Thread Two -- #
+    ThreadTwoAvgTime = 0;
+    ThreadTwoMaxTime = 0
+    ThreadTwoMinTime = 10000
+    for time in ThreadTwoTimes:
+        ThreadTwoAvgTime += time
+
+        if time > ThreadTwoMaxTime:
+            ThreadTwoMaxTime = time
+
+        if time < ThreadTwoMinTime:
+            ThreadTwoMinTime = time
+
+    ThreadTwoAvgTime /= len(ThreadTwoTimes)
     print(" --- THREAD TIMES --- ")
-    print("   - Thread 1:    -   ")
+    print("   - Thread 1:-   ")
     print("Average Time: "+str(ThreadOneAvgTime) + " ms")
     print("Maximum Time: "+str(ThreadOneMaxTime) + " ms")
     print("Minimum Time: "+str(ThreadOneMinTime) + " ms")
+    print("   - Thread 2: -   ")
+    print("Average Time: "+str(ThreadTwoAvgTime) + " ms")
+    print("Maximum Time: "+str(ThreadTwoMaxTime) + " ms")
+    print("Minimum Time: "+str(ThreadTwoMinTime) + " ms")
 
     print("\r\n\r\n")
+
+
+def ShowStream():
+    while Stream.isOpened():
+        img = numpy.copy(OriginalImage)
+        if(BoxCenterX >= 0) and (BoxCenterY >= 0):
+            contours = numpy.array( [[[BoxCenterX, BoxCenterY]]] )
+            cv2.drawContours(img, contours, -1, (255, 255, 0),5) # draw the contours(they will appear white because the image is binary)
+        cv2.imshow("stream", img)
+        cv2.waitKey(5)
+        time.sleep(0.1)
 
 def Kill():
     #releases some resources and stops the program
@@ -256,10 +338,15 @@ def Watch():
                 DispCurrentValues()
             elif cmd == "time": # shows thread execution time information
                 DispTime()
+            elif cmd == "stream":
+                ShowStream()
             elif cmd == "quit": # kills the program
                 Kill()
             else:
                 print("That command is unrecognized.")
+
+        else: #NOT devmode
+            time.sleep(0.5)
                 
 
 
@@ -285,7 +372,7 @@ def Vision():
         quit() #end program right then and there 
 
 #main entry
-if __name__ == '__main__':
+if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
     try:
         Vision() #STARTS THE PROGARM!!
     except:
