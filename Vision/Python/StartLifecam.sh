@@ -8,9 +8,8 @@ echo "${blue}Starting Vision...${NC}"
 v4l2-ctl -d 0 --set-fmt-video=width=600,height=400,pixelformat=YUYV
 v4l2-ctl -d 0 --set-ctrl=exposure_auto=1
 v4l2-ctl -d 0 --set-ctrl=exposure_absolute=5
-v4l2-ctl -d 0 --set-ctrl=brightness=31
-v4l2-ctl -d 0 --set-ctrl=white_balance_temperature_auto=0
-#v4l2-ctl -d 0 --set-ctrl=saturation=150
+v4l2-ctl -d 0 --set-ctrl=brightness=30
+#v4l2-ctl -d 0 --set-ctrl=saturation=5
 
 #starts the python files
 sudo python Vision.py
