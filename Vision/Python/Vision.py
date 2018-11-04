@@ -87,13 +87,6 @@ TimerStartTime = 0
 Contours = None
 ThreadOneTimes = []
 
-#process times
-TakeTime = 0
-ThreshTime = 0
-DilateTime = 0
-BinaryTime = 0
-ContourTime = 0
-
 # --- THREAD 2 UTILITY VALUES --- #
 BoxCenterX = -1
 BoxCenterY = -1
