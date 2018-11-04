@@ -68,7 +68,7 @@ TitleLabel = None
 TARGET_COLOR_LOW = numpy.array( [0,250,0] ) #low color bound (BGR)
 TARGET_COLOR_HIGH = numpy.array( [0,255,0] ) #high color bound(BGR)
 
-THRESHOLD_LOW = 35
+THRESHOLD_LOW = 32
 THRESHOLD_HIGH = 255
 
 
@@ -137,7 +137,7 @@ def Thread1():
         #calculate loop time if devmode
         if DEVMODE: 
             ThreadTime = time.clock() - startTime
-            ThreadTime /= 1000 #convert to milliseconds
+            ThreadTime *= 1000 #convert to milliseconds
             ThreadOneTimes.append(ThreadTime)
 
         
@@ -244,7 +244,9 @@ def Watch():
 
         if DEVMODE: # enables a command line for changing settings and things
 
-          #Im sorry for this speghetti code
+            #Work on a GUI later, but until we get entire program down, we stick with a command line
+            
+            #Im sorry for this speghetti code
             cmd = raw_input("Command:")
             if cmd == "c": # changes the target color of the program
                 ChangeColor()
