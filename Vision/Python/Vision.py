@@ -68,7 +68,7 @@ TitleLabel = None
 #Thread one process settings
 TARGET_COLOR_LOW = numpy.array( [0,250,0] ) #low color bound (BGR)
 TARGET_COLOR_HIGH = numpy.array( [0,255,0] ) #high color bound(BGR)
-
+TARGET_NONZERO_PIXELS = 1500
 THRESHOLD_LOW = 28
 THRESHOLD_HIGH = 255
 
@@ -80,6 +80,8 @@ TARGET_CONTOUR_ASPECT_RATIO_MIN = 0.75
 
 # --- ALL PROGRAM UTILITY VALUES --- # basically some values that arent settings that all threads might end up using
 OriginalImage = None
+TimerStartTime = 0
+
 
 # --- THREAD 1 UTILITY VALUES --- #
 Contours = None
@@ -91,6 +93,17 @@ BoxCenterY = -1
 ThreadTwoTimes = []
 
 
+# --- THREAD UTILITY METHODS --- #
+
+#a timer to make easy work of timing a process. Cannot have multiple timers at once
+def startTimer():
+    global TimerStartTime
+    TimerStartTime = time.clock()
+
+def endTimer():
+    return (time.clock() - TimerStartTime)
+
+
 # --- THREADS --- #
 
 def Thread1():
@@ -99,14 +112,14 @@ def Thread1():
     global ThreadOneTimes
     global Contours
     global OriginalImage
+    
     Binary = None
 
     while (Stream.isOpened()):
         #execute a lot
         startTime = time.clock() # get start of loop in processor time
-        
-        returnVal, Binary = Stream.read()
 
+        returnVal, Binary = Stream.read()        
         if returnVal == True:
 
             # --- now some simple image processing ---
@@ -118,39 +131,41 @@ def Thread1():
                 cv2.imshow("Take", Binary)
                 cv2.waitKey(5)
             
-            ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast
-
+            
+            ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
             if DEVMODE:
                 cv2.imshow("Threshold", Binary)
                 cv2.waitKey(5)
-            
-            Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
 
-            if DEVMODE:
-                cv2.imshow("Dilate", Binary)
-                cv2.waitKey(5)
+            zeros = len(numpy.argwhere(Binary))
+            if zeros > TARGET_NONZERO_PIXELS:
+                #only continue if there is something in the image
+                Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
+                
+                if DEVMODE:
+                    cv2.imshow("Dilate", Binary)
+                    cv2.waitKey(5)
 
-            if WRITE_IMAGE: 
-                cv2.imwrite("/home/pi/output.png", Binary) #writes to output.png in home menu
+                if WRITE_IMAGE: 
+                    cv2.imwrite("/home/pi/output.png", Binary) #writes to output.png in home menu
 
-            Binary = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
+                Binary = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
+                
+                if DEVMODE:
+                    cv2.imshow("Binary",Binary)
+                    cv2.waitKey(5)
+                
+                #contouring stuff
+                Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
-            if DEVMODE:
-                cv2.imshow("Binary",Binary)
-                cv2.waitKey(5)
-            
-            #contouring stuff
-            Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
-
-            if DEVMODE:
-                ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
-                cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
-
-            
-            #display image
-            if DEVMODE:
-                cv2.imshow("Live", ThreadOneOut)
-                key = cv2.waitKey(5) #IMPORTANT: imshow() WILL NOT WORK WITHOUT THIS LINE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                if (DEVMODE) and (len(Contours) > 0):
+                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
+                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
+                
+                #display image
+                if DEVMODE:
+                    cv2.imshow("Live", ThreadOneOut)
+                    key = cv2.waitKey(5) #IMPORTANT: imshow() WILL NOT WORK WITHOUT THIS LINE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             
         else:
             print("unable to get camera data!")
@@ -194,6 +209,9 @@ def Thread2():
                     h /= 2 #the center height
                     BoxCenterX = w + x
                     BoxCenterY = h + y
+            else:
+                BoxCenterX = -1 # target not found
+                BoxCenterY = -1
                     
                         
         else:
