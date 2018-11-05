@@ -25,7 +25,8 @@
 #
 #    ____________________________________     
 #    OTHER REMARKS:                           
-#    --the big sad                    
+#    --its gui time
+#    --also this program is hit or miss on whether it inits correctly right now
 #    ____________________________________
 
 
@@ -166,6 +167,11 @@ def Thread1():
                 if DEVMODE:
                     cv2.imshow("Live", ThreadOneOut)
                     key = cv2.waitKey(5) #IMPORTANT: imshow() WILL NOT WORK WITHOUT THIS LINE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            else:
+                #nothing significant in image. Update the box center to (-1, -1) to indicate it
+                BoxCenterX = -1
+                BoxCenterY = -1
             
         else:
             print("unable to get camera data!")
@@ -240,10 +246,7 @@ def ChangeColor(): # changes the target color range of the program. Developer mo
         TARGET_COLOR_LOW[x] = int(color_low_array[x])
 
     #output results
-    print("Values set.")
-    print("Color High:" + str(TARGET_COLOR_HIGH))
-    print("Color low:" + str(TARGET_COLOR_LOW))
-    print("\r\n\r\n")
+    
 
 def ChangeThreshold(): #changes the threshold range of the thresholding function. Developer mode only
     global THRESHOLD_LOW
@@ -253,10 +256,7 @@ def ChangeThreshold(): #changes the threshold range of the thresholding function
     THRESHOLD_LOW = int(low)
     THRESHOLD_HIGH = int(high)
     #output results
-    print("Values set.")
-    print("High Threshold:" + str(THRESHOLD_HIGH))
-    print("Low Threshold:" + str(THRESHOLD_LOW))
-    print("\r\n\r\n")
+    
 
 
 def DispCurrentValues(): #displays all the current modifiable values.
@@ -265,11 +265,13 @@ def DispCurrentValues(): #displays all the current modifiable values.
     print("Color Low Bound: " + str(TARGET_COLOR_LOW))
     print("Threshold High Bound: " + str(THRESHOLD_HIGH))
     print("Threshold Low Bound: "+ str(THRESHOLD_LOW))
+    print("Target nonzero pixels: " + str(TARGET_NONZERO_PIXELS))
     print("Contour Area Max: " + str(TARGET_CONTOUR_AREA_MAX))
     print("Contour Area Min: " + str(TARGET_CONTOUR_AREA_MIN))
     print("Aspect Ratio Max: " + str(TARGET_CONTOUR_ASPECT_RATIO_MAX))
     print("Aspect Ratio Min: " + str(TARGET_CONTOUR_ASPECT_RATIO_MIN))
     print("\r\n\r\n")
+
 
 def DispTime():
     #calculate some time stats
@@ -303,28 +305,61 @@ def DispTime():
             ThreadTwoMinTime = time
 
     ThreadTwoAvgTime /= len(ThreadTwoTimes)
-    print(" --- THREAD TIMES --- ")
-    print("   - Thread 1:-   ")
-    print("Average Time: "+str(ThreadOneAvgTime) + " ms")
-    print("Maximum Time: "+str(ThreadOneMaxTime) + " ms")
-    print("Minimum Time: "+str(ThreadOneMinTime) + " ms")
-    print("   - Thread 2: -   ")
-    print("Average Time: "+str(ThreadTwoAvgTime) + " ms")
-    print("Maximum Time: "+str(ThreadTwoMaxTime) + " ms")
-    print("Minimum Time: "+str(ThreadTwoMinTime) + " ms")
-
-    print("\r\n\r\n")
 
 
-def ShowStream():
-    while Stream.isOpened():
-        img = numpy.copy(OriginalImage)
-        if(BoxCenterX >= 0) and (BoxCenterY >= 0):
-            contours = numpy.array( [[[BoxCenterX, BoxCenterY]]] )
-            cv2.drawContours(img, contours, -1, (255, 255, 0),5) # draw the contours(they will appear white because the image is binary)
-        cv2.imshow("stream", img)
-        cv2.waitKey(5)
-        time.sleep(0.1)
+
+# --- TIME CALCULATION METHODS --- #
+def Thread1AverageTime():
+    avg = 0
+    for time in ThreadOneTimes:
+        avg += time
+
+    avg /= len(ThreadOneTimes)
+    return avg
+    
+
+def Thread1MaxTime():
+    maximum = 0
+    for time in ThreadOneTimes:
+        if time > maximum:
+            maximum = time
+
+    return maximum
+
+def Thread1MinTime():
+    minimum = 10000 # I think 10 seconds tops is a generous max
+    for time in ThreadOneTimes:
+        if time < minimum:
+            minimum = time
+
+    return minimum
+
+def Thread2AverageTime():
+    avg = 0
+    for time in ThreadTwoTimes:
+        avg += time
+
+    avg /= len(ThreadTwoTimes)
+    return avg
+
+def Thread2MaxTime():
+    maximum = 0
+    for time in ThreadTwoTimes:
+        if time > maximum:
+            maximum = time
+
+    return maximum
+
+def Thread2MinTime():
+    minimum = 10000
+    for time in ThreadTwoTimes:
+        if time < minimum:
+            minimum = time
+
+    return minimum
+
+
+# --- UTILITY METHODS --- #
 
 def Kill():
     #releases some resources and stops the program
@@ -340,47 +375,104 @@ def Kill():
 def Watch():
     #Watches over all threads and outputs displays if told to.
     print("Starting...")
+
+    #import global settings into method
+    global TARGET_COLOR_HIGH
+    global THRESHOLD_HIGH
+    global THRESHOLD_LOW
+    global TARGET_NONZERO_PIXELS
+    global TARGET_CONTOUR_AREA_MAX
+    global TARGET_CONTOUR_AREA_MIN
+    global TARGET_CONTOUR_ASPECT_RATIO_MAX
+    global TARGET_CONTOUR_ASPECT_RATIO_MIN
+    time.sleep(2) #give the threads a little time to start
     while True:
 
-        if DEVMODE: # enables a command line for changing settings and things
+        if DEVMODE: # grabs settings from the settings window and applies them
+            #first lets calculate some time stats
+            #prepare dashboard image to display information ( if only overlay works ): )
+            dashboard = numpy.zeros((300,500), numpy.uint8)
 
-            #Work on a GUI later, but until we get entire program down, we stick with a command line
+            #O HECK YES ITS TIME TO PUT TOGETHER THE TIMETABLE!!!!!
             
-            #Im sorry for this speghetti code
-            cmd = raw_input("Command:")
-            if cmd == "c": # changes the target color of the program
-                ChangeColor()
-            elif cmd == "t": # changes the target threshold of the program
-                ChangeThreshold()
-            elif cmd == "current": # shows the current settings of the program
-                DispCurrentValues()
-            elif cmd == "time": # shows thread execution time information
-                DispTime()
-            elif cmd == "stream":
-                ShowStream()
-            elif cmd == "quit": # kills the program
-                Kill()
-            else:
-                print("That command is unrecognized.")
+            #time for thread 1 loop times
+            cv2.putText(dashboard, "--- TIME ---", (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, "Thread 1 average loop time: ", (0,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread1AverageTime()), (300,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 1 largest loop time: ", (0,60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread1MaxTime()), (300,60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 1 smallest loop time: ", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread1MinTime()), (300,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
 
+            #Thread 2 loop times
+            cv2.putText(dashboard, "Thread 2 average loop time: ", (0,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread2AverageTime()), (300,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 2 largest loop time: ", (0,140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread2MaxTime()), (300,140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 2 smallest loop time: ", (0,160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread2MinTime()), (300,160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+
+            #show the stream with the dot drawn if target is found
+            img = numpy.copy(OriginalImage)
+            if(BoxCenterX >= 0) and (BoxCenterY >= 0):
+                contours = numpy.array( [[[BoxCenterX, BoxCenterY]]] ) #artifically make the contours because circle function started flexing on me
+                cv2.drawContours(img, contours, -1, (255, 255, 0),5) # draws the contours onto the image
+                
+            #get the trackbar positions and assign them to their respective settings
+            TARGET_COLOR_HIGH[2] = cv2.getTrackbarPos("Target High Red", "Settings")
+            TARGET_COLOR_HIGH[1] = cv2.getTrackbarPos("Target High Green", "Settings")
+            TARGET_COLOR_HIGH[0] = cv2.getTrackbarPos("Target High Blue", "Settings")
+            TARGET_COLOR_LOW[2] = cv2.getTrackbarPos("Target Low Red", "Settings")
+            TARGET_COLOR_LOW[1] = cv2.getTrackbarPos("Target Low Green", "Settings")
+            TARGET_COLOR_LOW[0] = cv2.getTrackbarPos("Target Low Blue", "Settings")
+            THRESHOLD_HIGH = cv2.getTrackbarPos("Target Threshold Max", "Settings")
+            THRESHOLD_LOW = cv2.getTrackbarPos("Target Threshold Value", "Settings")
+            TARGET_NONZERO_PIXELS = cv2.getTrackbarPos("Target Nonzero pixels", "Settings")
+            TARGET_CONTOUR_AREA_MAX = cv2.getTrackbarPos("Target Area Max", "Settings")
+            TARGET_CONTOUR_AREA_MIN = cv2.getTrackbarPos("Target Area Min", "Settings")
+            
+            cv2.imshow("Settings", dashboard)
+            cv2.imshow("Output", img)
+            cv2.waitKey(5)
+            time.sleep(0.5)
+                        
         else: #NOT devmode
             time.sleep(0.5)
                 
 
+def DoNothing(x): pass #heckin nothing
 
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
     #start the stuff going
     if Stream.isOpened():
         #initialize the threads
-        if DEVMODE:
+        if DEVMODE: #gives you the good stuff, but a bit harder on the CPU
             print("Initializing in Developer Mode.\r\n\r\n")
+            #we really using the OpenCV GUI for this one
+            cv2.namedWindow("Settings", cv2.WINDOW_NORMAL) #init the gui window
+            cv2.resizeWindow("Settings", 1000,800)
+            #create the trackbars (Im sorry I dont know how to resize them xDDD)
+            cv2.createTrackbar("Target High Red", "Settings", TARGET_COLOR_HIGH[2], 255, DoNothing)
+            cv2.createTrackbar("Target High Green", "Settings", TARGET_COLOR_HIGH[1], 255, DoNothing)
+            cv2.createTrackbar("Target High Blue", "Settings", TARGET_COLOR_HIGH[0], 255, DoNothing)
+            cv2.createTrackbar("Target Low Red", "Settings", TARGET_COLOR_LOW[2], 255, DoNothing)
+            cv2.createTrackbar("Target Low Green", "Settings", TARGET_COLOR_LOW[1], 255, DoNothing)
+            cv2.createTrackbar("Target Low Blue", "Settings", TARGET_COLOR_LOW[0], 255, DoNothing)
+            cv2.createTrackbar("Target Threshold Max", "Settings", THRESHOLD_HIGH, 255, DoNothing)
+            cv2.createTrackbar("Target Threshold Value", "Settings", THRESHOLD_LOW, 255, DoNothing)
+            cv2.createTrackbar("Target Nonzero pixels", "Settings", TARGET_NONZERO_PIXELS, 5000, DoNothing)
+            cv2.createTrackbar("Target Area Max", "Settings", TARGET_CONTOUR_AREA_MAX, 50000, DoNothing)
+            cv2.createTrackbar("Target Area Min", "Settings", TARGET_CONTOUR_AREA_MIN, 49999, DoNothing)
+                  
+            
         else:
-            print("Initializing in Running Mode.\r\n\r\n")
+            print("Initializing in Running Mode.\r\n\r\n") #runner mode is lighter on CPU but does not give you basically any feedback whatsoever (it just gives you the center box point)
 
         global THREAD_1
         global THREAD_2
-        
+
+        print("little hellO")
         THREAD_1 = thread.start_new_thread( Thread1, () )
         THREAD_2 = thread.start_new_thread( Thread2, () )
         time.sleep(0.25)
@@ -391,7 +483,4 @@ def Vision():
 
 #main entry
 if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
-    try:
         Vision() #STARTS THE PROGARM!!
-    except:
-        Kill()
