@@ -5,5 +5,14 @@ Some information:<br>
 <br>
 2. Program looks for an object in image defined by process setting variables. Center of object is calculated and stored in "BoxCenterX" and "BoxCenterY" in pixels 
 
-How to launch:
--run that shell file in the terminal
+The settings and what they mean
+--
+TARGET_COLOR_LOW: The low bound of target color of object in BGR (numpy array)
+TARGET_COLOR_HIGH: The high bound of target color of object in BGR (numpy array)
+TARGET_NONZERO_PIXELS: The number of not black pixels that need to be detected after thresholding for the program to continue processing the image
+THRESHOLD_LOW: The low value for the cv2.threshold function
+THRESHOLD_HIGH: The max value for the cv2.threshold function
+TARGET_CONTOUR_AREA_MAX: The maximum area in pixels that the object is. Any object that is not in area range is eliminated.
+TARGET_CONTOUR_AREA_MIN: The minimum area in pixels that the object is.
+TARGET_CONTOUR_ASPECT_RATIO_MAX: The maximum value for aspect ratio that the object is. Any object that is not in aspect ratio range is eliminated.
+TARGET_CONTOUR_ASPECT_RATIO_MIN: The minimum value for aspect ratio that the object is.
