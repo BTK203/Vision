@@ -222,10 +222,10 @@ def Thread2():
                         
         else:
             time.sleep(0.1) # wait for thread 1 to do its magic
-
-            ThreadTime = time.clock() - startTime
-            ThreadTime *= 1000 #convert to milliseconds
-            ThreadTwoTimes.append(ThreadTime)
+          
+          ThreadTime = time.clock() - startTime
+          ThreadTime *= 1000 #convert to milliseconds
+          ThreadTwoTimes.append(ThreadTime)
 
         
 
