@@ -151,22 +151,24 @@ def Thread1():
                     cv2.imwrite("/home/pi/output.png", Binary) #writes to output.png in home menu
 
                 Binary = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
-                
-                if DEVMODE:
-                    cv2.imshow("Binary",Binary)
-                    cv2.waitKey(5)
-                
-                #contouring stuff
-                Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
-                if (DEVMODE) and (len(Contours) > 0):
-                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
-                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
-                
-                #display image
-                if DEVMODE:
-                    cv2.imshow("Live", ThreadOneOut)
-                    key = cv2.waitKey(5) #IMPORTANT: imshow() WILL NOT WORK WITHOUT THIS LINE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                zeros = len(numpy.argwhere(Binary))
+                if zeros > TARGET_NONZERO_PIXELS:
+                    if DEVMODE:
+                        cv2.imshow("Binary",Binary)
+                        cv2.waitKey(5)
+                    
+                    #contouring stuff
+                    Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
+
+                    if (DEVMODE) and (len(Contours) > 0):
+                        ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
+                        cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
+                    
+                    #display image
+                    if DEVMODE:
+                        cv2.imshow("Live", ThreadOneOut)
+                        key = cv2.waitKey(5) #IMPORTANT: imshow() WILL NOT WORK WITHOUT THIS LINE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             else:
                 #nothing significant in image. Update the box center to (-1, -1) to indicate it
@@ -181,7 +183,6 @@ def Thread1():
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds
             ThreadOneTimes.append(ThreadTime)
-
 
         
 
@@ -220,12 +221,11 @@ def Thread2():
                 BoxCenterY = -1
                     
                         
-        else:
-            time.sleep(0.1) # wait for thread 1 to do its magic
-          
-          ThreadTime = time.clock() - startTime
-          ThreadTime *= 1000 #convert to milliseconds
-          ThreadTwoTimes.append(ThreadTime)
+        time.sleep(0.1) # wait for thread 1 to do its magic
+
+        ThreadTime = time.clock() - startTime
+        ThreadTime *= 1000 #convert to milliseconds
+        ThreadTwoTimes.append(ThreadTime)
 
         
 
@@ -397,20 +397,24 @@ def Watch():
             
             #time for thread 1 loop times
             cv2.putText(dashboard, "--- TIME ---", (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, "Thread 1 average loop time: ", (0,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, str(Thread1AverageTime()), (300,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
-            cv2.putText(dashboard, "Thread 1 largest loop time: ", (0,60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, str(Thread1MaxTime()), (300,60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
-            cv2.putText(dashboard, "Thread 1 smallest loop time: ", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, str(Thread1MinTime()), (300,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 1 latest loop time: ", (0,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(ThreadOneTimes[len(ThreadOneTimes) - 1]), (300,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 1 average loop time: ", (0,60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread1AverageTime()), (300,60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 1 largest loop time: ", (0,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread1MaxTime()), (300,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 1 smallest loop time: ", (0,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread1MinTime()), (300,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
 
             #Thread 2 loop times
-            cv2.putText(dashboard, "Thread 2 average loop time: ", (0,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, str(Thread2AverageTime()), (300,120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
-            cv2.putText(dashboard, "Thread 2 largest loop time: ", (0,140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, str(Thread2MaxTime()), (300,140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
-            cv2.putText(dashboard, "Thread 2 smallest loop time: ", (0,160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-            cv2.putText(dashboard, str(Thread2MinTime()), (300,160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 2 latest loop time: ", (0,140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(ThreadOneTimes[len(ThreadTwoTimes) - 1]), (300,140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 2 average loop time: ", (0,160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread2AverageTime()), (300,160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 2 largest loop time: ", (0,180), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread2MaxTime()), (300,180), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
+            cv2.putText(dashboard, "Thread 2 smallest loop time: ", (0,200), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
+            cv2.putText(dashboard, str(Thread2MinTime()), (300,200), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150,255,150)) # welp, its supposed to be green...
 
             #show the stream with the dot drawn if target is found
             img = numpy.copy(OriginalImage)
@@ -450,8 +454,26 @@ def Vision():
         if DEVMODE: #gives you the good stuff, but a bit harder on the CPU
             print("Initializing in Developer Mode.\r\n\r\n")
             #we really using the OpenCV GUI for this one
+
+            #First initialize the windows with coordinates so that we don't spit out random windows and make it hard to look at
+            cv2.namedWindow("Take")
+            cv2.namedWindow("Threshold")
+            cv2.namedWindow("Dilate")
+            cv2.namedWindow("Binary")
+            cv2.namedWindow("Live")
+            cv2.namedWindow("Output")
+
+            #position windows
+            cv2.moveWindow("Take", 450, 0)
+            cv2.moveWindow("Threshold", 850, 0)
+            cv2.moveWindow("Dilate", 1250,0)
+            cv2.moveWindow("Binary", 450, 450)
+            cv2.moveWindow("Live", 850, 450)
+            cv2.moveWindow("Output", 1250, 450)
+            
             cv2.namedWindow("Settings", cv2.WINDOW_NORMAL) #init the gui window
-            cv2.resizeWindow("Settings", 1000,800)
+            cv2.moveWindow("Settings", 0,0)
+            cv2.resizeWindow("Settings", 400,1000)
             #create the trackbars (Im sorry I dont know how to resize them xDDD)
             cv2.createTrackbar("Target High Red", "Settings", TARGET_COLOR_HIGH[2], 255, DoNothing)
             cv2.createTrackbar("Target High Green", "Settings", TARGET_COLOR_HIGH[1], 255, DoNothing)
@@ -483,4 +505,7 @@ def Vision():
 
 #main entry
 if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
+    #try:
         Vision() #STARTS THE PROGARM!!
+    #except:
+        #Kill() #displays set values and quits
