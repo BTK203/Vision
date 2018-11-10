@@ -57,14 +57,11 @@ Stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 500)
 
 #Developer Settings
 DEVMODE = True #Option to run in developer mode. Displays all output and allows for main thread to process commands. More in README.
-WRITE_IMAGE = False #output image as file will mainly be used for script configuration
-
 
 #Devmode utilities
 Devwindow = None #window where settings can be edited
 TitleLabel = None
 
-#Proccess Settings
 
 #Thread one process settings
 TARGET_COLOR_LOW = numpy.array( [0,250,0] ) #low color bound (BGR)
@@ -97,12 +94,13 @@ ThreadTwoTimes = []
 # --- THREAD UTILITY METHODS --- #
 
 #a timer to make easy work of timing a process. Cannot have multiple timers at once
-def startTimer():
-    global TimerStartTime
-    TimerStartTime = time.clock()
 
-def endTimer():
-    return (time.clock() - TimerStartTime)
+def DevmodeDisplayImage(window, image):
+    #displays the current thread output image if the program is initalized in devmode. For the time being, should only be called by thread 1.
+    if DEVMODE:
+        cv2.imshow(window, image)
+        cv2.waitKey(5)
+        
 
 
 # --- THREADS --- #
@@ -127,48 +125,29 @@ def Thread1():
             #thresholding
 
             OriginalImage = numpy.copy(Binary)
-
-            if DEVMODE:
-                cv2.imshow("Take", Binary)
-                cv2.waitKey(5)
-            
+            DevmodeDisplayImage("Take", Binary)
             
             ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
-            if DEVMODE:
-                cv2.imshow("Threshold", Binary)
-                cv2.waitKey(5)
+            DevmodeDisplayImage("Threshold", Binary)
 
             zeros = len(numpy.argwhere(Binary))
             if zeros > TARGET_NONZERO_PIXELS:
                 #only continue if there is something in the image
                 Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
-                
-                if DEVMODE:
-                    cv2.imshow("Dilate", Binary)
-                    cv2.waitKey(5)
-
-                if WRITE_IMAGE: 
-                    cv2.imwrite("/home/pi/output.png", Binary) #writes to output.png in home menu
+                DevmodeDisplayImage("Dilate", Binary)
 
                 Binary = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
+                DevmodeDisplayImage("Binary", Binary)
 
                 zeros = len(numpy.argwhere(Binary))
                 if zeros > TARGET_NONZERO_PIXELS:
-                    if DEVMODE:
-                        cv2.imshow("Binary",Binary)
-                        cv2.waitKey(5)
-                    
                     #contouring stuff
                     Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
                     if (DEVMODE) and (len(Contours) > 0):
                         ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
                         cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
-                    
-                    #display image
-                    if DEVMODE:
-                        cv2.imshow("Live", ThreadOneOut)
-                        key = cv2.waitKey(5) #IMPORTANT: imshow() WILL NOT WORK WITHOUT THIS LINE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        DevmodeDisplayImage("Live", ThreadOneOut)
 
             else:
                 #nothing significant in image. Update the box center to (-1, -1) to indicate it
@@ -226,36 +205,6 @@ def Thread2():
         ThreadTime = time.clock() - startTime
         ThreadTime *= 1000 #convert to milliseconds
         ThreadTwoTimes.append(ThreadTime)
-
-        
-
-#--- UTILITY METHODS ---#
-def ChangeColor(): # changes the target color range of the program. Developer mode only
-    #get color input
-    color_high_string = raw_input("Enter color range setting: Input a BGR color with numbers separated by commas.  \r\nHigh Bound:")
-    color_low_string  = raw_input("Low Bound:")
-    #compute the color
-    color_high_array = color_high_string.split(',')
-    color_low_array = color_low_string.split(',')
-
-    #set the target color range to input from user
-    for i in range(0,3):
-        TARGET_COLOR_HIGH[i] = int(color_high_array[i])
-    
-    for x in range(0,3):
-        TARGET_COLOR_LOW[x] = int(color_low_array[x])
-
-    #output results
-    
-
-def ChangeThreshold(): #changes the threshold range of the thresholding function. Developer mode only
-    global THRESHOLD_LOW
-    global THRESHOLD_HIGH
-    high = raw_input("Enter a threshold range setting: Input a number between 0 and 255.\r\nHigh Bound:")
-    low  = raw_input("Low bound:")
-    THRESHOLD_LOW = int(low)
-    THRESHOLD_HIGH = int(high)
-    #output results
     
 
 
@@ -271,40 +220,6 @@ def DispCurrentValues(): #displays all the current modifiable values.
     print("Aspect Ratio Max: " + str(TARGET_CONTOUR_ASPECT_RATIO_MAX))
     print("Aspect Ratio Min: " + str(TARGET_CONTOUR_ASPECT_RATIO_MIN))
     print("\r\n\r\n")
-
-
-def DispTime():
-    #calculate some time stats
-
-    # -- thread 1 -- #
-    ThreadOneAvgTime = 0 # average time for frame to elapse
-    ThreadOneMaxTime = 0 #the longest time for a frame to elapse
-    ThreadOneMinTime = 10000 # I think ten seconds max is a nice bet
-    for time in ThreadOneTimes:
-        ThreadOneAvgTime += time
-
-        if time > ThreadOneMaxTime:
-            ThreadOneMaxTime = time
-
-        if time < ThreadOneMinTime:
-            ThreadOneMinTime = time
-
-    ThreadOneAvgTime /= len(ThreadOneTimes)
-
-    # -- Thread Two -- #
-    ThreadTwoAvgTime = 0;
-    ThreadTwoMaxTime = 0
-    ThreadTwoMinTime = 10000
-    for time in ThreadTwoTimes:
-        ThreadTwoAvgTime += time
-
-        if time > ThreadTwoMaxTime:
-            ThreadTwoMaxTime = time
-
-        if time < ThreadTwoMinTime:
-            ThreadTwoMinTime = time
-
-    ThreadTwoAvgTime /= len(ThreadTwoTimes)
 
 
 
@@ -444,7 +359,7 @@ def Watch():
             time.sleep(0.5)
                 
 
-def DoNothing(x): pass #heckin nothing
+def DoNothing(x): pass #heckin nothing. This is the method called when trackbars are changed.
 
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
@@ -487,7 +402,6 @@ def Vision():
             cv2.createTrackbar("Target Area Max", "Settings", TARGET_CONTOUR_AREA_MAX, 50000, DoNothing)
             cv2.createTrackbar("Target Area Min", "Settings", TARGET_CONTOUR_AREA_MIN, 49999, DoNothing)
                   
-            
         else:
             print("Initializing in Running Mode.\r\n\r\n") #runner mode is lighter on CPU but does not give you basically any feedback whatsoever (it just gives you the center box point)
 
