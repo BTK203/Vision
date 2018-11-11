@@ -32,7 +32,7 @@
 
 import numpy
 import cv2
-import thread
+import threading
 import time
 import Tkinter as tk
 
@@ -83,6 +83,9 @@ TitleLabel = None
 #Calibration mode utilities
 CenterPixelColor = numpy.array( [0,0,0] ) #The output color of the calibration mode process.
 
+#global utilities
+ProgramEnding = False
+
 # --- TKINTER UI UTILITIES --- #
 Master_Window = None #Settings window which contains all the controls and information output
 Slider_High_R = None #Slider for user control of target red value.
@@ -118,161 +121,200 @@ TimerStartTime = 0
 # --- THREAD 1 UTILITY VALUES --- #
 Contours = None
 ThreadOneTimes = []
+Thread_One_Last_Loop_Time = 0 # last loop time so main thread can see if it has frozen or not
+TargetImage = None
 
 # --- THREAD 2 UTILITY VALUES --- #
 BoxCenterX = -1
 BoxCenterY = -1
 ThreadTwoTimes = []
+Thread_Two_Last_Loop_Time = 0 # main thread can see if it freezes or not
 
 
 # --- THREAD UTILITY METHODS --- #
-
-#a timer to make easy work of timing a process. Cannot have multiple timers at once
 
 def DevmodeDisplayImage(window, image):
     #displays the current thread output image if the program is initalized in devmode. For the time being, should only be called by thread 1.
     if DEVMODE:
         cv2.imshow(window, image)
         cv2.waitKey(5)
-        
 
 
 # --- THREADS --- #
 
-def Thread1():
-    print("Thread 1 init")
-    #Thread one stuff (algorithm steps 1-5)
-    global ThreadOneTimes
-    global Contours
-    global OriginalImage
-    global CenterPixelColor
+class Thread1(threading.Thread):
+    stop = False
+
+    def __init__(self, threadID, name, counter):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.counter = counter
+
+    def terminate(self):
+        self.stop = True
     
-    Binary = None
 
-    while (Stream.isOpened()):
-        #execute a lot
-        startTime = time.clock() # get start of loop in processor time
+    def run(self):
+        print("Thread 1 init")
+        #Thread one stuff (algorithm steps 1-5)
+        global ThreadOneTimes
+        global Contours
+        global OriginalImage
+        global CenterPixelColor
+        global TargetImage
+        global Thread_One_Last_Loop_Time
+        
+        Binary = None
 
-        returnVal, Binary = Stream.read()        
-        if returnVal == True:
+        while (Stream.isOpened()):
+            #execute a lot
+            startTime = time.clock() # get start of loop in processor time
 
-            if not CALIBRATION_MODE:
-                # --- now some simple image processing ---
-                #thresholding
+            returnVal, Binary = Stream.read()        
+            if returnVal == True:
 
-                OriginalImage = numpy.copy(Binary)
-                DevmodeDisplayImage("Take", Binary)
-                
-                ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
-                DevmodeDisplayImage("Threshold", Binary)
+                if not CALIBRATION_MODE:
+                    # --- now some simple image processing ---
+                    #thresholding
 
-                zeros = len(numpy.argwhere(Binary))
-                if zeros > TARGET_NONZERO_PIXELS:
-                    #only continue if there is something in the image
-                    Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
-                    DevmodeDisplayImage("Dilate", Binary)
-
-                    Binary = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
-                    DevmodeDisplayImage("Binary", Binary)
+                    OriginalImage = numpy.copy(Binary)
+                    DevmodeDisplayImage("Take", Binary)
+                    
+                    ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
+                    DevmodeDisplayImage("Threshold", Binary)
 
                     zeros = len(numpy.argwhere(Binary))
                     if zeros > TARGET_NONZERO_PIXELS:
-                        #contouring stuff
-                        Binary, Contours, Hierarchy = cv2.findContours(Binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
+                        #only continue if there is something in the image
+                        Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
+                        DevmodeDisplayImage("Dilate", Binary)
 
-                        if (DEVMODE) and (len(Contours) > 0):
-                            ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
-                            cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
-                            DevmodeDisplayImage("Live", ThreadOneOut)
+                        TargetImage = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
+                        DevmodeDisplayImage("Binary", TargetImage)
 
-                else:
-                    #nothing significant in image. Update the box center to (-1, -1) to indicate it
-                    BoxCenterX = -1
-                    BoxCenterY = -1
+                    else:
+                        #nothing significant in image. Update the box center to (-1, -1) to indicate it
+                        BoxCenterX = -1
+                        BoxCenterY = -1
 
-            else: #Calibration mode is enabled. Threshold image and display with contour at center point.
-                ret, Binary = cv2.threshold(Binary, THRESHOLD_LOW, THRESHOLD_HIGH, cv2.THRESH_BINARY) #thresholds image
-                Binary = cv2.resize(Binary, (400,400))
-                CenterPixelColor[2] = Binary[200][200][2] #Center pixel Red color
-                CenterPixelColor[1] = Binary[200][200][1] #Center pixel green color
-                CenterPixelColor[0] = Binary[200][200][0] #Center pixel blue color
+                else: #Calibration mode is enabled. Threshold image and display with contour at center point.
+                    ret, Binary = cv2.threshold(Binary, THRESHOLD_LOW, THRESHOLD_HIGH, cv2.THRESH_BINARY) #thresholds image
+                    Binary = cv2.resize(Binary, (400,400))
+                    CenterPixelColor[2] = Binary[200][200][2] #Center pixel Red color
+                    CenterPixelColor[1] = Binary[200][200][1] #Center pixel green color
+                    CenterPixelColor[0] = Binary[200][200][0] #Center pixel blue color
 
-                cv2.drawContours(Binary, numpy.array( [[[200,200]]] ), -1, (255,255,255), 3) #draws a contour at the center of the image for user reference.
+                    cv2.drawContours(Binary, numpy.array( [[[200,200]]] ), -1, (255,255,255), 3) #draws a contour at the center of the image for user reference.
 
+                    
+                    cv2.imshow("Threshold", Binary)
+                    cv2.waitKey(5)
                 
-                cv2.imshow("Threshold", Binary)
-                cv2.waitKey(5)
-            
-        else: # Stream was unable to get the camera data. Print a message.
-            print("unable to get camera data!")
+            else: # Stream was unable to get the camera data. Print a message.
+                print("unable to get camera data!")
 
-        #calculate loop time if devmode
-        if DEVMODE: 
+            #calculate loop time if devmode
+            if self.stop:
+                return
+                
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds
             ThreadOneTimes.append(ThreadTime)
+            Thread_One_Last_Loop_Time = time.clock()
+            
 
-        
 
-def Thread2():
-    #Thread two stuff (algorithm steps 6-9)
-    print("thread 2 init")
-
-    global BoxCenterX
-    global BoxCenterY
-    #Test the contours to eliminate the ones that we dont want
-    while Stream.isOpened():
-        startTime = time.clock()
-        x,y,w,h = 0,0,0,0
-        if (Contours != None) and (not CALIBRATION_MODE): # we do not want to run loop if there are no contours. Thread not needed in calibration mode. 
-            localContours = numpy.copy(Contours)
-            for contour in localContours:
-                #get area & aspect ratio
-                Area = cv2.contourArea(contour)
-                x,y,w,h = cv2.boundingRect(contour)
-                AspectRatio = w/h
-
-                #test the area & aspect ratio
-                if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (Area < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
-                    #if it does not pass it is removed from the array
-                    localContours = numpy.delete(localContours, contour, axis=0)
-            #after for loop, calculate the center of the bounding box, if it is not empty
-            if(len(localContours) > 0):
-                if len(localContours) == 1:
-                    #calculate the center of the bounding box
-                    w /= 2 #the center width
-                    h /= 2 #the center height
-                    BoxCenterX = w + x
-                    BoxCenterY = h + y
-            else:
-                BoxCenterX = -1 # target not found
-                BoxCenterY = -1
-                    
-                        
-        time.sleep(0.1) # wait for thread 1 to do its magic
-
-        ThreadTime = time.clock() - startTime
-        ThreadTime *= 1000 #convert to milliseconds
-        ThreadTwoTimes.append(ThreadTime)
+class Thread2(threading.Thread):
+    stop = False
     
+    def __init__(self, threadID, name, counter):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.counter = counter
+
+    def terminate(self):
+        self.stop = True
+
+    def run(self):
+        #Thread two stuff (algorithm steps 6-9)
+        print("thread 2 init")
+
+        global BoxCenterX
+        global BoxCenterY
+        global Thread_Two_Last_Loop_Time
+        #Test the contours to eliminate the ones that we dont want
+        while Stream.isOpened():
+            startTime = time.clock()
+
+            Thread1Image = numpy.copy(TargetImage)
+            zeros = len(numpy.argwhere(Thread1Image))
+            if zeros > TARGET_NONZERO_PIXELS: # only continue if there are actually contours in the thing
+                #contouring stuff
+                Thread1Image, Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
+
+                if (DEVMODE) and (len(Contours) > 0):
+                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
+                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
+                    DevmodeDisplayImage("Live", ThreadOneOut)
+            
+                x,y,w,h = 0,0,0,0
+                if (Contours != None) and (not CALIBRATION_MODE) and (len(Contours) > 0): # we do not want to run loop if there are no contours. Thread not needed in calibration mode. 
+                    #localContours = numpy.copy(Contours)
+                    
+                    for contour in Contours:
+                        #get area & aspect ratio
+                        Area = cv2.contourArea(contour)
+                        x,y,w,h = cv2.boundingRect(contour)
+                        AspectRatio = w/h
+
+                        #test the area & aspect ratio
+                        if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (Area < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
+                            #if it does not pass it is removed from the array
+                            Contours = numpy.delete(Contours, contour, axis=0)
+                    #after for loop, calculate the center of the bounding box, if it is not empty
+                    if(len(Contours) > 0):
+                        if len(Contours) == 1:
+                            #calculate the center of the bounding box
+                            w /= 2 #the center width
+                            h /= 2 #the center height
+                            BoxCenterX = w + x
+                            BoxCenterY = h + y
+                    else:
+                        BoxCenterX = -1 # target not found
+                        BoxCenterY = -1
+                        
+                            
+            #time.sleep(0.1) # wait for thread 1 to do its magic
+
+            ThreadTime = time.clock() - startTime
+            ThreadTime *= 1000 #convert to milliseconds
+            ThreadTwoTimes.append(ThreadTime)
+            Thread_Two_Last_Loop_Time = time.clock()
+
+            if self.stop:
+                return
+        
 
 
 def DispCurrentValues(): #displays all the current modifiable values.
     print(" --- CURRENT VALUES --- ")
-    print("Color High Bound: " + str(TARGET_COLOR_HIGH))
-    print("Color Low Bound: " + str(TARGET_COLOR_LOW))
-    print("Threshold High Bound: " + str(THRESHOLD_HIGH))
-    print("Threshold Low Bound: "+ str(THRESHOLD_LOW))
+    print("Color High Bound:      " + str(TARGET_COLOR_HIGH))
+    print("Color Low Bound:       " + str(TARGET_COLOR_LOW))
+    print("Threshold High Bound:  " + str(THRESHOLD_HIGH))
+    print("Threshold Low Bound:   " + str(THRESHOLD_LOW))
     print("Target nonzero pixels: " + str(TARGET_NONZERO_PIXELS))
-    print("Contour Area Max: " + str(TARGET_CONTOUR_AREA_MAX))
-    print("Contour Area Min: " + str(TARGET_CONTOUR_AREA_MIN))
-    print("Aspect Ratio Max: " + str(TARGET_CONTOUR_ASPECT_RATIO_MAX))
-    print("Aspect Ratio Min: " + str(TARGET_CONTOUR_ASPECT_RATIO_MIN))
+    print("Contour Area Max:      " + str(TARGET_CONTOUR_AREA_MAX))
+    print("Contour Area Min:      " + str(TARGET_CONTOUR_AREA_MIN))
+    print("Aspect Ratio Max:      " + str(TARGET_CONTOUR_ASPECT_RATIO_MAX))
+    print("Aspect Ratio Min:      " + str(TARGET_CONTOUR_ASPECT_RATIO_MIN))
     print("\r\n\r\n")
 
 
 
 # --- TIME CALCULATION METHODS --- #
+#these should be pretty easy to follow...
 def Thread1AverageTime():
     avg = 0
     for time in ThreadOneTimes:
@@ -327,20 +369,34 @@ def Thread2MinTime():
 
 def Kill():
     #releases some resources and stops the program
+    global ProgramEnding
+    
     Stream.release()
-    cv2.destroyAllWindows()
 
     if DEVMODE: #print out some final settings if in devmode   
         DispCurrentValues()
 
     #kill the program family
+    THREAD_1.terminate()
+    THREAD_2.terminate()
+    ProgramEnding = True
+    time.sleep(2)
+    cv2.destroyAllWindows()
+    print("Thread 1 running: "+str(THREAD_1.is_alive()))
+    print("Thread 2 running: "+str(THREAD_2.is_alive()))
+
+    while(THREAD_1.is_alive()) or (THREAD_2.is_alive()):
+        print ("Waiting for threads to terminate...")
+        print("Thread 1 running: "+str(THREAD_1.is_alive()))
+        print("Thread 2 running: "+str(THREAD_2.is_alive()))
+        time.sleep(1)
+    
     quit()
 
-def Watch():
-    #Watches over all threads and outputs displays if told to.
-    print("Starting...")
 
-    #import global settings into method
+def UpdateUI():
+    #method called from Watch() that updates the UI in the TKinter window.
+    #import the global vars for mutation
     global TARGET_COLOR_HIGH
     global TARGET_COLOR_LOW
     global THRESHOLD_HIGH
@@ -355,63 +411,138 @@ def Watch():
     global Thread1_Time_Text
     global Thread2_Time_Text
     global UtilText1
-    time.sleep(2) #give the threads a little more time to start
+
+    #Update values in the master window
+    Master_Window.update()
+    #get all the values from the controls and put them into the process settings
+    TARGET_COLOR_HIGH[2] = Slider_High_R.get()
+    TARGET_COLOR_HIGH[1] = Slider_High_G.get()
+    TARGET_COLOR_HIGH[0] = Slider_High_B.get()
+    TARGET_COLOR_LOW[2] = Slider_Low_R.get()
+    TARGET_COLOR_LOW[1] = Slider_Low_G.get()
+    TARGET_COLOR_LOW[0] = Slider_Low_B.get()
+    THRESHOLD_HIGH = Slider_Threshold_Max.get()
+    THRESHOLD_LOW= Slider_Threshold_Value.get()
+    TARGET_NONZERO_PIXELS = Slider_Nonzero_Pixels.get()
+    TARGET_CONTOUR_AREA_MAX = Slider_Area_Max.get()
+    TARGET_CONTOUR_AREA_MIN = Slider_Area_Min.get()
+
+    #update labels with some time and dev stats
+    RunningMode = "Running Mode: " #first init the vars
+    Thread1TimeStats = "--- THREAD 1 TIMES ---\n"
+    Thread2TimeStats = "--- THREAD 2 TIMES ---\n"
+    UtilTextOne = ""
+
+    #now set the vars
+    if DEVMODE:
+        RunningMode += "Developer"
+    elif CALIBRATION_MODE:
+        RunningMode += "Calibration"
+    RunningMode += "\n"
+
+    #calculate the times for the processes and put them into strings to be displayed in the window
+    Thread1TimeStats += "Last Recorded loop: " + str(ThreadOneTimes[len(ThreadOneTimes) -1]) + "\n"
+    Thread1TimeStats += " Average Loop Time: " + str(Thread1AverageTime()) + "\n"
+    Thread1TimeStats += " Longest Loop Time: " + str(Thread1MaxTime()) + "\n"
+    Thread1TimeStats += "Shortest Loop Time: " + str(Thread1MinTime()) + "\n\n"
+    
+    Thread2TimeStats += "Last Recorded loop: " + str(ThreadTwoTimes[len(ThreadTwoTimes) -1]) + "\n"
+    Thread2TimeStats += " Average Loop Time: " + str(Thread2AverageTime()) + "\n"
+    Thread2TimeStats += " Longest Loop Time: " + str(Thread2MaxTime()) + "\n"
+    Thread2TimeStats += "Shortest Loop Time: " + str(Thread2MinTime()) + "\n\n"
+
+    #Update the Utility Label based on some events and which mode the program is running in. 
+
+    if CALIBRATION_MODE:
+        UtilTextOne = "Center Pixel Color: BGR" + str(CenterPixelColor)
+    elif DEVMODE:
+        if not THREAD_1.is_alive():
+            UtilTextOne += "\nWARNING: Thread 1 has stopped running!"
+
+        if not THREAD_2.is_alive():
+            UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
+
+        #add the center pixel of the target
+        UtilTextOne += "\n\nTarget Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+    
+    #now set the labels
+    Running_Mode_Text.set(RunningMode)
+    Thread1_Time_Text.set(Thread1TimeStats)
+    Thread2_Time_Text.set(Thread2TimeStats)
+    UtilText1.set(UtilTextOne)
+
+#END METHOD
+
+
+def UpdateOutputImage():
+    #show output image with point drawn
+    img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
+    if (BoxCenterX > -1) and (BoxCenterY > -1):
+        cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
+        cv2.imshow("Output", img) # show the image in the window
+        cv2.waitKey(5)
+        time.sleep(0.1)
+#END METHOD
+
+
+def CheckThreadConditions():
+    #checks to see if the threads are still running. If they are not for whatever reason, reinstantiate them.
+    #some thread recovery stuff so that threads can be revived if they freeze, error out, etc
+    global THREAD_1
+    global THREAD_2
+    global UtilText1
+    
+    LastResponse1 = time.clock() - Thread_One_Last_Loop_Time
+    LastResponse2 = time.clock() - Thread_Two_Last_Loop_Time
+    
+    if ((not ProgramEnding) and (not THREAD_1.is_alive())) or (LastResponse1 > 1): #last response is in seconds btw
+        #Thread 1 has been killed, errored out, or has frozen. Revive it.
+        THREAD_1.terminate()
+        time.sleep(0.1) # wait for thread to fully terminate
+        THREAD_1 = Thread1(1, "Thread 1", 1) #create and start a new thread 1
+        THREAD_1.start() # this one actually starts thread
+
+        UtilTextOne = "MESSAGE: Thread 1 revived."
+        UtilText1.set(UtilTextOne)
+
+    if ((not ProgramEnding) and (not THREAD_2.is_alive())) or (LastResponse2 > 1):
+        #same thing for thread2. if it errors out, revive it
+        THREAD_2.terminate()
+        time.sleep(0.1)
+        THREAD_2 = Thread2(2, "Thread 2", 2)
+        THREAD_2.start()
+
+        UtilTextOne = "MESSAGE: Thread 2 revived."
+        UtilText1.set(UtilTextOne)
+#END METHOD
+
+
+def Watch():
+    #Watches over all threads and outputs displays if told to.
+    #threads in case one of them errors out
+    print("Waiting for threads to initalize")
+    time.sleep(1.5) #give the threads a little more time to start
+    print("Starting...")
     while True:
 
+        if ProgramEnding: #but first lets check to see if the ending flag is up
+                print("Vision man is going away now...")
+                Master_Window.destroy() # say goodbye to settings and output window
+                break #stop loop is the program ending flag is upif ProgramEnding: #but first lets check to see if the ending flag is up
+    
         if DEVMODE or CALIBRATION_MODE: # grabs settings from the settings window and applies them
-            Master_Window.update()
 
-            #get all the values from the controls and put them into the process settings
-            TARGET_COLOR_HIGH[2] = Slider_High_R.get()
-            TARGET_COLOR_HIGH[1] = Slider_High_G.get()
-            TARGET_COLOR_HIGH[0] = Slider_High_B.get()
-            TARGET_COLOR_LOW[2] = Slider_Low_R.get()
-            TARGET_COLOR_LOW[1] = Slider_Low_G.get()
-            TARGET_COLOR_LOW[0] = Slider_Low_B.get()
-            THRESHOLD_HIGH = Slider_Threshold_Max.get()
-            THRESHOLD_LOW= Slider_Threshold_Value.get()
-            TARGET_NONZERO_PIXELS = Slider_Nonzero_Pixels.get()
-            TARGET_CONTOUR_AREA_MAX = Slider_Area_Max.get()
-            TARGET_CONTOUR_AREA_MIN = Slider_Area_Min.get()
+            # --- UPDATE UI --- #
+            UpdateUI()
 
-            #update labels with some time and dev stats
-            RunningMode = "Running Mode: " #first init the vars
-            Thread1TimeStats = "--- THREAD 1 TIMES ---\n"
-            Thread2TimeStats = "--- THREAD 2 TIMES ---\n"
-            UtilTextOne = ""
-
-            #now set the vars
-            if DEVMODE:
-                RunningMode += "Developer"
-            elif CALIBRATION_MODE:
-                RunningMode += "Calibration"
-            RunningMode += "\n"
-
-            Thread1TimeStats += "Last Recorded loop: " + str(ThreadOneTimes[len(ThreadOneTimes) -1]) + "\n"
-            Thread1TimeStats += " Average Loop Time: " + str(Thread1AverageTime()) + "\n"
-            Thread1TimeStats += " Longest Loop Time: " + str(Thread1MaxTime()) + "\n"
-            Thread1TimeStats += "Shortest Loop Time: " + str(Thread1MinTime()) + "\n\n"
+            # --- IMAGING --- #
+            UpdateOutputImage()
             
-            Thread2TimeStats += "Last Recorded loop: " + str(ThreadTwoTimes[len(ThreadTwoTimes) -1]) + "\n"
-            Thread2TimeStats += " Average Loop Time: " + str(Thread2AverageTime()) + "\n"
-            Thread2TimeStats += " Longest Loop Time: " + str(Thread2MaxTime()) + "\n"
-            Thread2TimeStats += "Shortest Loop Time: " + str(Thread2MinTime()) + "\n\n"
-
-            if CALIBRATION_MODE:
-                UtilTextOne = "Center Pixel Color: BGR" + str(CenterPixelColor)
-            
-            #now set the labels
-            Running_Mode_Text.set(RunningMode)
-            Thread1_Time_Text.set(Thread1TimeStats)
-            Thread2_Time_Text.set(Thread2TimeStats)
-            UtilText1.set(UtilTextOne)
-            
-                        
-        else: #NOT devmode
-            time.sleep(0.5)
-
+        CheckThreadConditions()
         #send values to the RoboRIO here.
+
         
+#END METHOD
 
 # --- BUTTON EVENTS --- #
 def DevmodeButtonClicked(): #Switches to normal devmode output if the program is in calibration mode.
@@ -545,9 +676,16 @@ def Vision():
         global THREAD_2
 
         print("Hello. I am the vision man.")
-        THREAD_1 = thread.start_new_thread( Thread1, () ) # creates and starts new thread running Thread1(), to take and process the images
-        THREAD_2 = thread.start_new_thread( Thread2, () ) # creates and starts new thread running Thread2(), to process contours and come up with a center point
-        time.sleep(0.25) #waits a little for threads to initalize
+        print("Making Threads")
+        THREAD_1 = Thread1(1, "Thread 1", 1) # creates and starts new thread running Thread1(), to take and process the images
+        THREAD_2 = Thread2(2, "Thread 2", 2) # creates and starts new thread running Thread2(), to process contours and come up with a center point
+
+        print("Starting Threads")
+        #start the threads
+        THREAD_1.start()
+        THREAD_2.start()
+
+        print("Starting watch loop")
         Watch() #starts master loop
     else:
         print("WARNING: COULD NOT OPEN THE CAMERA")
@@ -555,7 +693,8 @@ def Vision():
 
 #main entry
 if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
-    #try:
+    try:
         Vision() #STARTS THE PROGARM!!
-    #except:
-        #Kill() #displays set values and quits
+    except Exception as ex:
+        print ("\n\nERR: "+ str(ex) + "\n\n")
+        Kill() #displays set values and quits
