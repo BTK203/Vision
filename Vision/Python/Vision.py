@@ -199,13 +199,13 @@ class Thread1(threading.Thread):
 
                 else: #Calibration mode is enabled. Threshold image and display with contour at center point.
                     ret, Binary = cv2.threshold(Binary, THRESHOLD_LOW, THRESHOLD_HIGH, cv2.THRESH_BINARY) #thresholds image
+                    Binary = cv2.dilate(Binary, kernel, Binary)
                     Binary = cv2.resize(Binary, (400,400))
                     CenterPixelColor[2] = Binary[200][200][2] #Center pixel Red color
                     CenterPixelColor[1] = Binary[200][200][1] #Center pixel green color
                     CenterPixelColor[0] = Binary[200][200][0] #Center pixel blue color
 
                     cv2.drawContours(Binary, numpy.array( [[[200,200]]] ), -1, (255,255,255), 3) #draws a contour at the center of the image for user reference.
-
                     
                     cv2.imshow("Threshold", Binary)
                     cv2.waitKey(5)
@@ -447,15 +447,15 @@ def UpdateUI():
     RunningMode += "\n"
 
     #calculate the times for the processes and put them into strings to be displayed in the window
-    Thread1TimeStats += "Last Recorded loop: " + str(ThreadOneTimes[len(ThreadOneTimes) -1]) + "\n"
-    Thread1TimeStats += " Average Loop Time: " + str(Thread1AverageTime()) + "\n"
-    Thread1TimeStats += " Longest Loop Time: " + str(Thread1MaxTime()) + "\n"
-    Thread1TimeStats += "Shortest Loop Time: " + str(Thread1MinTime()) + "\n\n"
+    Thread1TimeStats += "Last Recorded loop: " + str(ThreadOneTimes[len(ThreadOneTimes) -1]) + "ms\n"
+    Thread1TimeStats += " Average Loop Time: " + str(Thread1AverageTime()) + "ms\n"
+    Thread1TimeStats += " Longest Loop Time: " + str(Thread1MaxTime()) + "ms\n"
+    Thread1TimeStats += "Shortest Loop Time: " + str(Thread1MinTime()) + "ms\n\n"
     
-    Thread2TimeStats += "Last Recorded loop: " + str(ThreadTwoTimes[len(ThreadTwoTimes) -1]) + "\n"
-    Thread2TimeStats += " Average Loop Time: " + str(Thread2AverageTime()) + "\n"
-    Thread2TimeStats += " Longest Loop Time: " + str(Thread2MaxTime()) + "\n"
-    Thread2TimeStats += "Shortest Loop Time: " + str(Thread2MinTime()) + "\n\n"
+    Thread2TimeStats += "Last Recorded loop: " + str(ThreadTwoTimes[len(ThreadTwoTimes) -1]) + "ms\n"
+    Thread2TimeStats += " Average Loop Time: " + str(Thread2AverageTime()) + "ms\n"
+    Thread2TimeStats += " Longest Loop Time: " + str(Thread2MaxTime()) + "ms\n"
+    Thread2TimeStats += "Shortest Loop Time: " + str(Thread2MinTime()) + "ms\n\n"
 
     #Update the Utility Label based on some events and which mode the program is running in. 
 
@@ -481,10 +481,12 @@ def UpdateUI():
 
 
 def UpdateOutputImage():
-    #show output image with point drawn
-    img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
-    if (BoxCenterX > -1) and (BoxCenterY > -1):
-        cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
+    if not CALIBRATION_MODE:
+        #show output image with point drawn
+        img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
+        if (BoxCenterX > -1) and (BoxCenterY > -1):
+            cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
+            
         cv2.imshow("Output", img) # show the image in the window
         cv2.waitKey(5)
 #END METHOD
@@ -556,6 +558,7 @@ def DevmodeButtonClicked(): #Switches to normal devmode output if the program is
     global CALIBRATION_MODE
     DEVMODE = True
     CALIBRATION_MODE = False
+    cv2.destroyAllWindows() #get rid of the threshold window
     time.sleep(0.1)
 
 def CalibrateButtonClicked(): #switches to calibration mode if the program is in devmode.
