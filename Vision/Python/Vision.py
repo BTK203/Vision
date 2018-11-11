@@ -129,6 +129,7 @@ BoxCenterX = -1
 BoxCenterY = -1
 ThreadTwoTimes = []
 Thread_Two_Last_Loop_Time = 0 # main thread can see if it freezes or not
+ImageHasContents = True # value that thread 1 sets to tell thread two if there was anything in the image or not. Only set to false if Thread 1 saw nothing in the image.
 
 
 # --- THREAD UTILITY METHODS --- #
@@ -137,7 +138,7 @@ def DevmodeDisplayImage(window, image):
     #displays the current thread output image if the program is initalized in devmode. For the time being, should only be called by thread 1.
     if DEVMODE:
         cv2.imshow(window, image)
-        cv2.waitKey(5)
+        cv2.waitKey(15)
 
 
 # --- THREADS --- #
@@ -153,6 +154,7 @@ class Thread1(threading.Thread):
 
     def terminate(self):
         self.stop = True
+        print("Thread 1 attempting to terminate")
     
 
     def run(self):
@@ -164,6 +166,7 @@ class Thread1(threading.Thread):
         global CenterPixelColor
         global TargetImage
         global Thread_One_Last_Loop_Time
+        global ImageHasContents
         
         Binary = None
 
@@ -175,28 +178,24 @@ class Thread1(threading.Thread):
             if returnVal == True:
 
                 if not CALIBRATION_MODE:
-                    # --- now some simple image processing ---
-                    #thresholding
-
+                    # now some simple image processing
                     OriginalImage = numpy.copy(Binary)
-                    DevmodeDisplayImage("Take", Binary)
-                    
+                    #DevmodeDisplayImage("Take", Binary)
                     ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
-                    DevmodeDisplayImage("Threshold", Binary)
-
+                    #DevmodeDisplayImage("Threshold", Binary)
                     zeros = len(numpy.argwhere(Binary))
                     if zeros > TARGET_NONZERO_PIXELS:
                         #only continue if there is something in the image
                         Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
-                        DevmodeDisplayImage("Dilate", Binary)
-
+                        #DevmodeDisplayImage("Dilate", Binary)
                         TargetImage = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
-                        DevmodeDisplayImage("Binary", TargetImage)
+                        #DevmodeDisplayImage("Binary", TargetImage)
+                        ImageHasContents = True
 
                     else:
-                        #nothing significant in image. Update the box center to (-1, -1) to indicate it
-                        BoxCenterX = -1
-                        BoxCenterY = -1
+                        #nothing significant in image. In this case just tell thread 2 not to run
+                        ImageHasContents = False
+                        
 
                 else: #Calibration mode is enabled. Threshold image and display with contour at center point.
                     ret, Binary = cv2.threshold(Binary, THRESHOLD_LOW, THRESHOLD_HIGH, cv2.THRESH_BINARY) #thresholds image
@@ -216,6 +215,7 @@ class Thread1(threading.Thread):
 
             #calculate loop time if devmode
             if self.stop:
+                print("Thread 1 terminating")
                 return
                 
             ThreadTime = time.clock() - startTime
@@ -236,6 +236,7 @@ class Thread2(threading.Thread):
 
     def terminate(self):
         self.stop = True
+        print("Thread 2 attempting to terminate")
 
     def run(self):
         #Thread two stuff (algorithm steps 6-9)
@@ -250,14 +251,15 @@ class Thread2(threading.Thread):
 
             Thread1Image = numpy.copy(TargetImage)
             zeros = len(numpy.argwhere(Thread1Image))
-            if zeros > TARGET_NONZERO_PIXELS: # only continue if there are actually contours in the thing
+            if (zeros > TARGET_NONZERO_PIXELS) and (ImageHasContents): # only continue if there are actually contours in the thing. If ImageHasContents is false that means that thread 1 did not see anything in image
                 #contouring stuff
+                
                 Thread1Image, Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
-                if (DEVMODE) and (len(Contours) > 0):
-                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
-                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
-                    DevmodeDisplayImage("Live", ThreadOneOut)
+##                if (DEVMODE) and (len(Contours) > 0): #it hecking slows the program down a lot tho D:<
+##                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
+##                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
+##                    DevmodeDisplayImage("Live", ThreadOneOut)
             
                 x,y,w,h = 0,0,0,0
                 if (Contours != None) and (not CALIBRATION_MODE) and (len(Contours) > 0): # we do not want to run loop if there are no contours. Thread not needed in calibration mode. 
@@ -273,27 +275,31 @@ class Thread2(threading.Thread):
                         if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (Area < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
                             #if it does not pass it is removed from the array
                             Contours = numpy.delete(Contours, contour, axis=0)
+
                     #after for loop, calculate the center of the bounding box, if it is not empty
                     if(len(Contours) > 0):
-                        if len(Contours) == 1:
-                            #calculate the center of the bounding box
-                            w /= 2 #the center width
-                            h /= 2 #the center height
-                            BoxCenterX = w + x
-                            BoxCenterY = h + y
-                    else:
+                        #calculate the center of the bounding box
+                        w /= 2 #the center width
+                        h /= 2 #the center height
+                        BoxCenterX = w + x
+                        BoxCenterY = h + y
+                    else: # There are no contours after the tests. Set the coordinates to -1s
                         BoxCenterX = -1 # target not found
                         BoxCenterY = -1
-                        
-                            
-            #time.sleep(0.1) # wait for thread 1 to do its magic
-
+                else: #After finding them contours, theres no contours. Set the coordinates to -1
+                    BoxCenterX = -1
+                    BoxCenterY = -1
+            else: #There is nothing in the image. Since there wont be any contours lets just save us some time shall we?
+                BoxCenterX = -1
+                BoxCenterY = -1
+                
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds
             ThreadTwoTimes.append(ThreadTime)
             Thread_Two_Last_Loop_Time = time.clock()
 
             if self.stop:
+                print("Thread 2 terminating")
                 return
         
 
@@ -481,7 +487,6 @@ def UpdateOutputImage():
         cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
         cv2.imshow("Output", img) # show the image in the window
         cv2.waitKey(5)
-        time.sleep(0.1)
 #END METHOD
 
 
@@ -539,6 +544,7 @@ def Watch():
             UpdateOutputImage()
             
         CheckThreadConditions()
+        #print("(" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")")
         #send values to the RoboRIO here.
 
         
@@ -550,6 +556,7 @@ def DevmodeButtonClicked(): #Switches to normal devmode output if the program is
     global CALIBRATION_MODE
     DEVMODE = True
     CALIBRATION_MODE = False
+    time.sleep(0.1)
 
 def CalibrateButtonClicked(): #switches to calibration mode if the program is in devmode.
     global DEVMODE
@@ -558,6 +565,7 @@ def CalibrateButtonClicked(): #switches to calibration mode if the program is in
     CALIBRATION_MODE = True
     #now since its calibration mode, we only want the thresholding window with the contour. Destroy all other windows.
     cv2.destroyAllWindows() #we can do this because the programs just going to create another one.
+    time.sleep(0.1)
 
 def QuitButtonClicked(): # kills the program
     print("Killing the program...")
@@ -695,6 +703,5 @@ def Vision():
 if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
     try:
         Vision() #STARTS THE PROGARM!!
-    except Exception as ex:
-        print ("\n\nERR: "+ str(ex) + "\n\n")
+    except:
         Kill() #displays set values and quits
