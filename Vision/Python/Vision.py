@@ -272,7 +272,7 @@ class Thread2(threading.Thread):
                         AspectRatio = w/h
 
                         #test the area & aspect ratio
-                        if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (Area < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
+                        if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (AspectRatio > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (AspectRatio < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
                             #if it does not pass it is removed from the array
                             Contours = numpy.delete(Contours, contour, axis=0)
 
