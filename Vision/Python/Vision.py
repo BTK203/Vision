@@ -26,7 +26,6 @@
 #    ____________________________________     
 #    OTHER REMARKS:                           
 #    --its gui time
-#    --also this program is hit or miss on whether it inits correctly right now
 #    ____________________________________
 
 
@@ -58,7 +57,6 @@ Stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 500)
 
 #Developer Settings
 DEVMODE = True #Option to run in developer mode. Displays all output and uses UI that allows user to change settings in runtime.
-CALIBRATION_MODE = False
 
 #Thread one process settings
 TARGET_COLOR_LOW = numpy.array( [0,250,0] ) #low color bound (BGR)
@@ -70,8 +68,8 @@ THRESHOLD_HIGH = 255
 #Thread two process settings
 TARGET_CONTOUR_AREA_MAX = 12000
 TARGET_CONTOUR_AREA_MIN = 3000
-TARGET_CONTOUR_ASPECT_RATIO_MAX = 1.25
-TARGET_CONTOUR_ASPECT_RATIO_MIN = 0.75
+TARGET_CONTOUR_ASPECT_RATIO_MAX = 1.1
+TARGET_CONTOUR_ASPECT_RATIO_MIN = 0.9
 
 
 # --- UTILITIES -- #
@@ -177,38 +175,23 @@ class Thread1(threading.Thread):
             returnVal, Binary = Stream.read()        
             if returnVal == True:
 
-                if not CALIBRATION_MODE:
-                    # now some simple image processing
-                    OriginalImage = numpy.copy(Binary)
-                    #DevmodeDisplayImage("Take", Binary)
-                    ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
-                    #DevmodeDisplayImage("Threshold", Binary)
-                    zeros = len(numpy.argwhere(Binary))
-                    if zeros > TARGET_NONZERO_PIXELS:
-                        #only continue if there is something in the image
-                        Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
-                        #DevmodeDisplayImage("Dilate", Binary)
-                        TargetImage = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
-                        #DevmodeDisplayImage("Binary", TargetImage)
-                        ImageHasContents = True
+                # now some simple image processing
+                OriginalImage = numpy.copy(Binary)
+                #DevmodeDisplayImage("Take", Binary)
+                ret, Binary = cv2.threshold(Binary,THRESHOLD_LOW, THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
+                #DevmodeDisplayImage("Threshold", Binary)
+                zeros = len(numpy.argwhere(Binary))
+                if zeros > TARGET_NONZERO_PIXELS:
+                    #only continue if there is something in the image
+                    Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
+                    #DevmodeDisplayImage("Dilate", Binary)
+                    TargetImage = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
+                    #DevmodeDisplayImage("Binary", TargetImage)
+                    ImageHasContents = True
 
-                    else:
-                        #nothing significant in image. In this case just tell thread 2 not to run
-                        ImageHasContents = False
-                        
-
-                else: #Calibration mode is enabled. Threshold image and display with contour at center point.
-                    ret, Binary = cv2.threshold(Binary, THRESHOLD_LOW, THRESHOLD_HIGH, cv2.THRESH_BINARY) #thresholds image
-                    Binary = cv2.dilate(Binary, kernel, Binary)
-                    Binary = cv2.resize(Binary, (400,400))
-                    CenterPixelColor[2] = Binary[200][200][2] #Center pixel Red color
-                    CenterPixelColor[1] = Binary[200][200][1] #Center pixel green color
-                    CenterPixelColor[0] = Binary[200][200][0] #Center pixel blue color
-
-                    cv2.drawContours(Binary, numpy.array( [[[200,200]]] ), -1, (255,255,255), 3) #draws a contour at the center of the image for user reference.
-                    
-                    cv2.imshow("Threshold", Binary)
-                    cv2.waitKey(5)
+                else:
+                    #nothing significant in image. In this case just tell thread 2 not to run
+                    ImageHasContents = False
                 
             else: # Stream was unable to get the camera data. Print a message.
                 print("unable to get camera data!")
@@ -262,7 +245,7 @@ class Thread2(threading.Thread):
 ##                    DevmodeDisplayImage("Live", ThreadOneOut)
             
                 x,y,w,h = 0,0,0,0
-                if (Contours != None) and (not CALIBRATION_MODE) and (len(Contours) > 0): # we do not want to run loop if there are no contours. Thread not needed in calibration mode. 
+                if (Contours != None) and (len(Contours) > 0): # we do not want to run loop if there are no contours. Thread not needed in calibration mode. 
                     #localContours = numpy.copy(Contours)
                     
                     for contour in Contours:
@@ -413,7 +396,6 @@ def UpdateUI():
     global TARGET_CONTOUR_ASPECT_RATIO_MAX
     global TARGET_CONTOUR_ASPECT_RATIO_MIN
 
-    global Running_Mode_Label
     global Thread1_Time_Text
     global Thread2_Time_Text
     global UtilText1
@@ -434,17 +416,9 @@ def UpdateUI():
     TARGET_CONTOUR_AREA_MIN = Slider_Area_Min.get()
 
     #update labels with some time and dev stats
-    RunningMode = "Running Mode: " #first init the vars
     Thread1TimeStats = "--- THREAD 1 TIMES ---\n"
     Thread2TimeStats = "--- THREAD 2 TIMES ---\n"
     UtilTextOne = ""
-
-    #now set the vars
-    if DEVMODE:
-        RunningMode += "Developer"
-    elif CALIBRATION_MODE:
-        RunningMode += "Calibration"
-    RunningMode += "\n"
 
     #calculate the times for the processes and put them into strings to be displayed in the window
     Thread1TimeStats += "Last Recorded loop: " + str(ThreadOneTimes[len(ThreadOneTimes) -1]) + "ms\n"
@@ -459,20 +433,16 @@ def UpdateUI():
 
     #Update the Utility Label based on some events and which mode the program is running in. 
 
-    if CALIBRATION_MODE:
-        UtilTextOne = "Center Pixel Color: BGR" + str(CenterPixelColor)
-    elif DEVMODE:
-        if not THREAD_1.is_alive():
-            UtilTextOne += "\nWARNING: Thread 1 has stopped running!"
+    if not THREAD_1.is_alive():
+        UtilTextOne += "\nWARNING: Thread 1 has stopped running!"
 
-        if not THREAD_2.is_alive():
-            UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
+    if not THREAD_2.is_alive():
+        UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
 
-        #add the center pixel of the target
-        UtilTextOne += "\n\nTarget Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+    #add the center pixel of the target
+    UtilTextOne += "\n\nTarget Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
     
     #now set the labels
-    Running_Mode_Text.set(RunningMode)
     Thread1_Time_Text.set(Thread1TimeStats)
     Thread2_Time_Text.set(Thread2TimeStats)
     UtilText1.set(UtilTextOne)
@@ -481,14 +451,13 @@ def UpdateUI():
 
 
 def UpdateOutputImage():
-    if not CALIBRATION_MODE:
-        #show output image with point drawn
-        img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
-        if (BoxCenterX > -1) and (BoxCenterY > -1):
-            cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
-            
-        cv2.imshow("Output", img) # show the image in the window
-        cv2.waitKey(5)
+    #show output image with point drawn
+    img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
+    if (BoxCenterX > -1) and (BoxCenterY > -1):
+        cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
+        
+    cv2.imshow("Output", img) # show the image in the window
+    cv2.waitKey(5)
 #END METHOD
 
 
@@ -546,30 +515,12 @@ def Watch():
             UpdateOutputImage()
             
         CheckThreadConditions()
-        #print("(" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")")
         #send values to the RoboRIO here.
 
         
 #END METHOD
 
 # --- BUTTON EVENTS --- #
-def DevmodeButtonClicked(): #Switches to normal devmode output if the program is in calibration mode.
-    global DEVMODE
-    global CALIBRATION_MODE
-    DEVMODE = True
-    CALIBRATION_MODE = False
-    cv2.destroyAllWindows() #get rid of the threshold window
-    time.sleep(0.1)
-
-def CalibrateButtonClicked(): #switches to calibration mode if the program is in devmode.
-    global DEVMODE
-    global CALIBRATION_MODE
-    DEVMODE = False
-    CALIBRATION_MODE = True
-    #now since its calibration mode, we only want the thresholding window with the contour. Destroy all other windows.
-    cv2.destroyAllWindows() #we can do this because the programs just going to create another one.
-    time.sleep(0.1)
-
 def QuitButtonClicked(): # kills the program
     print("Killing the program...")
     Kill()
@@ -675,9 +626,6 @@ def Vision():
             UtilLabel1.pack()
 
             # --- INITIALIZE THE BUTTONS --- #
-            #p.s: not putting the buttons into variables since Im not grabbing any data. They will exist in TK.
-            tk.Button(Master_Window, text="Devmode Enable", width=50, command=DevmodeButtonClicked).pack()
-            tk.Button(Master_Window, text="Calibration Mode Enable", width=50, command=CalibrateButtonClicked).pack()
             tk.Button(Master_Window, text="Kill Program", width=50, command=QuitButtonClicked).pack()
                   
         else:
