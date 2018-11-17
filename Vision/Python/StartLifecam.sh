@@ -12,4 +12,4 @@ v4l2-ctl -d 0 --set-ctrl=brightness=30
 #v4l2-ctl -d 0 --set-ctrl=saturation=5
 
 #starts the python files
-sudo python Vision.py
+python Vision.py

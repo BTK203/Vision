@@ -14,7 +14,7 @@
 #    1). Get image                          
 #    2). Threshold image                      
 #    3). Dilate image
-#    4). convert to bin 
+#    4). convert to binary 
 #    5). Find contours                        
 #    6). run area test on contours    
 #    7). run aspect ratio test on contours
@@ -29,11 +29,14 @@
 #    ____________________________________
 
 
+from __future__ import division
 import numpy
 import cv2
 import threading
 import time
 import Tkinter as tk
+from decimal import *
+
 
 
 
@@ -59,17 +62,19 @@ Stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 500)
 DEVMODE = True #Option to run in developer mode. Displays all output and uses UI that allows user to change settings in runtime.
 
 #Thread one process settings
-TARGET_COLOR_LOW = numpy.array( [0,250,0] ) #low color bound (BGR)
+TARGET_COLOR_LOW = numpy.array( [0,220,0] ) #low color bound (BGR)
 TARGET_COLOR_HIGH = numpy.array( [0,255,0] ) #high color bound(BGR)
 TARGET_NONZERO_PIXELS = 1500
-THRESHOLD_LOW = 28
+THRESHOLD_LOW = 57
 THRESHOLD_HIGH = 255
 
 #Thread two process settings
-TARGET_CONTOUR_AREA_MAX = 12000
-TARGET_CONTOUR_AREA_MIN = 3000
-TARGET_CONTOUR_ASPECT_RATIO_MAX = 1.1
-TARGET_CONTOUR_ASPECT_RATIO_MIN = 0.9
+TARGET_CONTOUR_AREA_MAX = 15000
+TARGET_CONTOUR_AREA_MIN = 1500
+TARGET_OBJECT_SOLIDITY_HIGH = Decimal(0.45)
+TARGET_OBJECT_SOLIDITY_LOW = Decimal(0.05)
+TARGET_OBJECT_CENTER_X = 200
+TARGET_OBJECT_CENTER_Y = 200
 
 
 # --- UTILITIES -- #
@@ -78,37 +83,42 @@ TARGET_CONTOUR_ASPECT_RATIO_MIN = 0.9
 Devwindow = None #window where settings can be edited
 TitleLabel = None
 
-#Calibration mode utilities
-CenterPixelColor = numpy.array( [0,0,0] ) #The output color of the calibration mode process.
-
 #global utilities
 ProgramEnding = False
 
 # --- TKINTER UI UTILITIES --- #
-Master_Window = None #Settings window which contains all the controls and information output
-Slider_High_R = None #Slider for user control of target red value.
-Slider_High_G = None #Slider for user control of target green value.
-Slider_High_B = None #Slider for user control of target blue value.
+Master_Window = tk.Tk()
+Slider_High_R = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Red: ")
+Slider_High_G = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Green: ")
+Slider_High_B = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Blue: ")
+Slider_Low_R = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target Low Red: ")
+Slider_Low_G = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target Low Green: ")
+Slider_Low_B = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target Low Blue: ")
+Slider_Threshold_Max = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Threshold Max: ")
+Slider_Threshold_Value = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Threshold Value: ")
+Slider_Nonzero_Pixels = tk.Scale(Master_Window, from_=0, to=5000, orient=tk.HORIZONTAL, length=500, label="Target Nonzero Pixels: ")
+Slider_Area_Max = tk.Scale(Master_Window, from_=0, to=50000, orient=tk.HORIZONTAL, length=500, label="Target Area Maximum: ")
+Slider_Area_Min = tk.Scale(Master_Window, from_=0, to=49999, orient=tk.HORIZONTAL, length=500, label="Target Area Minimum: ")
+Slider_Solidity_High = tk.Scale(Master_Window, from_=0, to=100, orient=tk.HORIZONTAL, length=500, label="Target Solidity High:")
+Slider_Solidity_Low = tk.Scale(Master_Window, from_=0, to=100, orient=tk.HORIZONTAL, length=500, label="Target Solidity Low:")
 
-Slider_Low_R = None #Slider for user control of low target red value.
-Slider_Low_G = None #Slider for user contorl of low target green value.
-Slider_Low_B = None #Slider for user control of low target blue value.
+#Init the text objects
+Running_Mode_Text = tk.StringVar(Master_Window)
+Thread1_Time_Text = tk.StringVar(Master_Window)
+Thread2_Time_Text = tk.StringVar(Master_Window)
+UtilText1 = tk.StringVar(Master_Window)
 
-Slider_Threshold_Max = None #Slider for user control of threshold max value
-Slider_Threshold_Value = None #Slider for user control of thereshold regular value
-Slider_Nonzero_Pixels = None #Slider for user control of the number of nonzero pixels needed to continue processing
-Slider_Area_Max = None #Slider for user control of the maximum area of contours
-Slider_Area_Min = None #Slider for user control of minimum area of the contours
+#set the texts
+Running_Mode_Text.set("\n\n\nRunning Mode: Developer")
+Thread1_Time_Text.set("hecking time")
+Thread2_Time_Text.set("hecking time")
+UtilText1.set("") #Setting it to nothing because there is nothing to display currently
 
-Running_Mode_Label = None #Label that displays the current program running mode. Can be Developer or Calibration
-Thread1_Time_Label = None #Label that displays the time stats for thread 1.
-Thread2_Time_Label = None #Label that displays the time stats for thread 2.
-UtilLabel1 = None #A label that can display messages, warnings, or errors if devmode is enabled, but will display the center pixel color if in calibration mode.
-
-Running_Mode_Text = None #Text for Running mode label.
-Thread1_Time_Text = None #Text for thread1time label
-Thread2_Time_Text = None #Text for thread2time label
-UtilText1 = None #Text for utillabel
+#now set the labels
+Running_Mode_Label = tk.Label(Master_Window, textvariable=Running_Mode_Text, anchor=tk.W)
+Thread1_Time_Label = tk.Label(Master_Window, textvariable=Thread1_Time_Text, anchor=tk.W)
+Thread2_Time_Label = tk.Label(Master_Window, textvariable=Thread2_Time_Text, anchor=tk.W)
+UtilLabel1 = tk.Label(Master_Window, textvariable=UtilText1, anchor=tk.W)
 
 
 # --- ALL PROGRAM UTILITY VALUES --- # basically some values that arent settings that all threads might end up using
@@ -136,7 +146,7 @@ def DevmodeDisplayImage(window, image):
     #displays the current thread output image if the program is initalized in devmode. For the time being, should only be called by thread 1.
     if DEVMODE:
         cv2.imshow(window, image)
-        cv2.waitKey(15)
+        cv2.waitKey(5)
 
 
 # --- THREADS --- #
@@ -209,6 +219,7 @@ class Thread1(threading.Thread):
 
 
 class Thread2(threading.Thread):
+    
     stop = False
     
     def __init__(self, threadID, name, counter):
@@ -228,6 +239,7 @@ class Thread2(threading.Thread):
         global BoxCenterX
         global BoxCenterY
         global Thread_Two_Last_Loop_Time
+
         #Test the contours to eliminate the ones that we dont want
         while Stream.isOpened():
             startTime = time.clock()
@@ -247,28 +259,33 @@ class Thread2(threading.Thread):
                 x,y,w,h = 0,0,0,0
                 if (Contours != None) and (len(Contours) > 0): # we do not want to run loop if there are no contours. Thread not needed in calibration mode. 
                     #localContours = numpy.copy(Contours)
-                    
+
+                    passed = 0
                     for contour in Contours:
-                        #get area & aspect ratio
+                        #get area & solidity
+                        #area
                         Area = cv2.contourArea(contour)
                         x,y,w,h = cv2.boundingRect(contour)
-                        AspectRatio = w/h
+                        #getting solidity
+                        BoxArea = w * h
+                        Solidity = Area / BoxArea
 
                         #test the area & aspect ratio
-                        if not((Area > TARGET_CONTOUR_AREA_MIN) and (Area < TARGET_CONTOUR_AREA_MAX) and (AspectRatio > TARGET_CONTOUR_ASPECT_RATIO_MIN) and (AspectRatio < TARGET_CONTOUR_ASPECT_RATIO_MAX)):
-                            #if it does not pass it is removed from the array
-                            Contours = numpy.delete(Contours, contour, axis=0)
+                        if(Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_AREA_MIN):
+                            if(Solidity < TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > TARGET_OBJECT_SOLIDITY_LOW):
+                                #yay it passes, now process it
 
-                    #after for loop, calculate the center of the bounding box, if it is not empty
-                    if(len(Contours) > 0):
-                        #calculate the center of the bounding box
-                        w /= 2 #the center width
-                        h /= 2 #the center height
-                        BoxCenterX = w + x
-                        BoxCenterY = h + y
-                    else: # There are no contours after the tests. Set the coordinates to -1s
-                        BoxCenterX = -1 # target not found
+                                #Deviation code here
+                                
+                                BoxCenterX = int((w/2) +x)
+                                BoxCenterY = int((h/2) +y)
+                                passed += 1 #this contour passes, add to the "passed" var so that the program knows to not set the values to -1
+                                print("X: "+str(BoxCenterX) + ", Y: "+str(BoxCenterY) + "\n")
+
+                    if passed < 1: #no contours have passed
+                        BoxCenterX = -1
                         BoxCenterY = -1
+
                 else: #After finding them contours, theres no contours. Set the coordinates to -1
                     BoxCenterX = -1
                     BoxCenterY = -1
@@ -296,8 +313,8 @@ def DispCurrentValues(): #displays all the current modifiable values.
     print("Target nonzero pixels: " + str(TARGET_NONZERO_PIXELS))
     print("Contour Area Max:      " + str(TARGET_CONTOUR_AREA_MAX))
     print("Contour Area Min:      " + str(TARGET_CONTOUR_AREA_MIN))
-    print("Aspect Ratio Max:      " + str(TARGET_CONTOUR_ASPECT_RATIO_MAX))
-    print("Aspect Ratio Min:      " + str(TARGET_CONTOUR_ASPECT_RATIO_MIN))
+    print("Solidity High:         " + str(TARGET_OBJECT_SOLIDITY_HIGH))
+    print("Solidity Low:          " + str(TARGET_OBJECT_SOLIDITY_LOW))
     print("\r\n\r\n")
 
 
@@ -393,8 +410,8 @@ def UpdateUI():
     global TARGET_NONZERO_PIXELS
     global TARGET_CONTOUR_AREA_MAX
     global TARGET_CONTOUR_AREA_MIN
-    global TARGET_CONTOUR_ASPECT_RATIO_MAX
-    global TARGET_CONTOUR_ASPECT_RATIO_MIN
+    global TARGET_OBJECT_SOLIDITY_HIGH
+    global TARGEt_OBJECT_SOLIDITY_LOW
 
     global Thread1_Time_Text
     global Thread2_Time_Text
@@ -414,6 +431,8 @@ def UpdateUI():
     TARGET_NONZERO_PIXELS = Slider_Nonzero_Pixels.get()
     TARGET_CONTOUR_AREA_MAX = Slider_Area_Max.get()
     TARGET_CONTOUR_AREA_MIN = Slider_Area_Min.get()
+##    TARGET_OBJECT_SOLIDITY_HIGH = Slider_Solidity_High.get() / 100 #these ones must be divided by 100 since they are decimals shown as percentages
+##    TARGET_OBJECT_SOLIDITY_LOW = Slider_Solidity_Low.get() / 100
 
     #update labels with some time and dev stats
     Thread1TimeStats = "--- THREAD 1 TIMES ---\n"
@@ -506,7 +525,7 @@ def Watch():
                 Master_Window.destroy() # say goodbye to settings and output window
                 break #stop loop is the program ending flag is upif ProgramEnding: #but first lets check to see if the ending flag is up
     
-        if DEVMODE or CALIBRATION_MODE: # grabs settings from the settings window and applies them
+        if DEVMODE: # grabs settings from the settings window and applies them
 
             # --- UPDATE UI --- #
             UpdateUI()
@@ -531,7 +550,7 @@ def Vision():
     #start the stuff going
     if Stream.isOpened():
         #initialize the threads
-        if DEVMODE or CALIBRATION_MODE: #gives you the good stuff, but a bit harder on the CPU
+        if DEVMODE: #gives you the good stuff, but a bit harder on the CPU
             #first import the global tkinter utilities
             global Master_Window
             global Slider_High_R
@@ -547,6 +566,8 @@ def Vision():
             global Slider_Nonzero_Pixels
             global Slider_Area_Max
             global Slider_Area_Min
+            global Slider_Solidity_High
+            global Slider_Solidity_Low
 
             global Running_Mode_Label
             global Thread1_Time_Label
@@ -561,21 +582,8 @@ def Vision():
             print("Initializing in Developer Mode.\r\n\r\n")
             #tkinter!!!
 
-            # --- INITALIZE THE CONTROLS --- #
-            #Create the sliders and controls to be put into the window
-            Master_Window = tk.Tk()
-            Slider_High_R = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Red: ")
-            Slider_High_G = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Green: ")
-            Slider_High_B = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Blue: ")
-            Slider_Low_R = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target Low Red: ")
-            Slider_Low_G = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target Low Green: ")
-            Slider_Low_B = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target Low Blue: ")
-            Slider_Threshold_Max = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Threshold Max: ")
-            Slider_Threshold_Value = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Threshold Value: ")
-            Slider_Nonzero_Pixels = tk.Scale(Master_Window, from_=0, to=5000, orient=tk.HORIZONTAL, length=500, label="Target Nonzero Pixels: ")
-            Slider_Area_Max = tk.Scale(Master_Window, from_=0, to=50000, orient=tk.HORIZONTAL, length=500, label="Target Area Maximum: ")
-            Slider_Area_Min = tk.Scale(Master_Window, from_=0, to=49999, orient=tk.HORIZONTAL, length=500, label="Target Area Minimum: ")
-            #Set the values for each of the controls
+            #--- set and grid the UI elements --- #
+
             Slider_High_R.set(TARGET_COLOR_HIGH[2])
             Slider_High_G.set(TARGET_COLOR_HIGH[1])
             Slider_High_B.set(TARGET_COLOR_HIGH[0])
@@ -587,46 +595,30 @@ def Vision():
             Slider_Nonzero_Pixels.set(TARGET_NONZERO_PIXELS)
             Slider_Area_Max.set(TARGET_CONTOUR_AREA_MAX)
             Slider_Area_Min.set(TARGET_CONTOUR_AREA_MIN)
+            Slider_Solidity_High.set(TARGET_OBJECT_SOLIDITY_HIGH * 100) #multiply by 100 to get percentages instead of decimals
+            Slider_Solidity_Low.set(TARGET_OBJECT_SOLIDITY_LOW * 100)
             #now pack all the new sliders and things into the window to be displayed
-            Slider_High_R.pack()
-            Slider_High_G.pack()
-            Slider_High_B.pack()
-            Slider_Low_R.pack()
-            Slider_Low_G.pack()
-            Slider_Low_B.pack()
-            Slider_Threshold_Max.pack()
-            Slider_Threshold_Value.pack()
-            Slider_Nonzero_Pixels.pack()
-            Slider_Area_Max.pack()
-            Slider_Area_Min.pack()
+            Slider_High_R.grid(row=0, column=0)
+            Slider_High_G.grid(row=1, column=0)
+            Slider_High_B.grid(row=2, column=0)
+            Slider_Low_R.grid(row=3,column=0)
+            Slider_Low_G.grid(row=4,column=0)
+            Slider_Low_B.grid(row=5, column=0)
+            Slider_Threshold_Max.grid(row=6, column=0)
+            Slider_Threshold_Value.grid(row=7, column=0)
+            Slider_Nonzero_Pixels.grid(row=8, column=0)
+            Slider_Area_Max.grid(row=9, column=0)
+            Slider_Area_Min.grid(row=10, column=0)
+            Slider_Solidity_High.grid(row=11, column=0)
+            Slider_Solidity_Low.grid(row=12,column=0)
+            tk.Button(Master_Window, text="Kill Program", width=50, command=QuitButtonClicked).grid(row=8, column=1)
 
-            # --- INITALIZE THE LABELS --- #
-            #well... actually the text variables
-            Running_Mode_Text = tk.StringVar(Master_Window)
-            Thread1_Time_Text = tk.StringVar(Master_Window)
-            Thread2_Time_Text = tk.StringVar(Master_Window)
-            UtilText1 = tk.StringVar(Master_Window)
-
-            #set the texts
-            Running_Mode_Text.set("\n\n\nRunning Mode: Developer")
-            Thread1_Time_Text.set("hecking time")
-            Thread2_Time_Text.set("hecking time")
-            UtilText1.set("") #Setting it to nothing because there is nothing to display currently
-
-            #now set the labels
-            Running_Mode_Label = tk.Label(Master_Window, textvariable=Running_Mode_Text, anchor=tk.W)
-            Thread1_Time_Label = tk.Label(Master_Window, textvariable=Thread1_Time_Text, anchor=tk.W)
-            Thread2_Time_Label = tk.Label(Master_Window, textvariable=Thread2_Time_Text, anchor=tk.W)
-            UtilLabel1 = tk.Label(Master_Window, textvariable=UtilText1, anchor=tk.W)
-
+            #grid the labels and things
             #pack the labels
-            Running_Mode_Label.pack()
-            Thread1_Time_Label.pack()
-            Thread2_Time_Label.pack()
-            UtilLabel1.pack()
-
-            # --- INITIALIZE THE BUTTONS --- #
-            tk.Button(Master_Window, text="Kill Program", width=50, command=QuitButtonClicked).pack()
+            Running_Mode_Label.grid(row=0, column=1)
+            Thread1_Time_Label.grid(row=2, column=1)
+            Thread2_Time_Label.grid(row=4, column=1)
+            UtilLabel1.grid(row=6, column=1)
                   
         else:
             print("Initializing in Running Mode.\r\n\r\n") #runner mode is lighter on CPU but does not give you any feedback whatsoever (it just gives you the center box point)
@@ -652,7 +644,7 @@ def Vision():
 
 #main entry
 if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
-    try:
+    #try:
         Vision() #STARTS THE PROGARM!!
-    except:
-        Kill() #displays set values and quits
+    #except:
+        #Kill() #displays set values and quits
