@@ -681,7 +681,7 @@ def Vision():
 
 #main entry
 if __name__ == '__main__': #MAIN ENTRY POINT RIGHT HERE
-    #try:
+    try:
         Vision() #STARTS THE PROGARM!!
-    #except:
-        #Kill() #displays set values and quits
+    except KeyboardInterrupt:
+        Kill() #displays set values and quits
