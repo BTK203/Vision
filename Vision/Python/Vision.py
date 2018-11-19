@@ -57,14 +57,15 @@ THRESHOLD_LOW = 57
 THRESHOLD_HIGH = 255
 
 #Thread two process settings
-TARGET_CONTOUR_AREA_MAX = 15000
-TARGET_CONTOUR_AREA_MIN = 1500
+TARGET_CONTOUR_AREA_MAX = 20000
+TARGET_CONTOUR_AREA_MIN = 3000
 TARGET_OBJECT_SOLIDITY_HIGH = Decimal(0.98)
 TARGET_OBJECT_SOLIDITY_LOW = Decimal(0.65)
 TARGET_OBJECT_CENTER_X = 200
 TARGET_OBJECT_CENTER_Y = 200
 TARGET_OBJECT_ASPECT_RATIO_HIGH = Decimal(1.25)
-TARGET_OBJECT_ASPECT_RATIO_LOW = Decimal(0.75)
+TARGET_OBJECT_ASPECT_RATIO_LOW = Decimal(0.65)
+DEVIATION_MAX = 15 #amount in pixels the target can jump for the program to believe it
 
 
 # --- UTILITIES -- #
@@ -187,7 +188,9 @@ class Thread1(threading.Thread):
             #execute a lot
             startTime = time.clock() # get start of loop in processor time
 
-            returnVal, Binary = Stream.read()        
+            returnVal, Binary = Stream.read()
+            Binary = cv2.resize(Binary, (200,200)) #resize the image to make it smaller, faster
+
             if returnVal == True:
 
                 # now some simple image processing
@@ -198,10 +201,8 @@ class Thread1(threading.Thread):
                 zeros = len(numpy.argwhere(Binary))
                 if zeros > TARGET_NONZERO_PIXELS:
                     #only continue if there is something in the image
-                    Binary = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
+                    TargetImage = cv2.dilate(Binary, kernel, Binary) #dilate to close gaps
                     #DevmodeDisplayImage("Dilate", Binary)
-                    TargetImage = cv2.inRange(Binary, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
-                    #DevmodeDisplayImage("Binary", TargetImage)
                     ImageHasContents = True
 
                 else:
@@ -263,7 +264,8 @@ class Thread2(threading.Thread):
             zeros = len(numpy.argwhere(Thread1Image))
             if (zeros > TARGET_NONZERO_PIXELS) and (ImageHasContents): # only continue if there are actually contours in the thing. If ImageHasContents is false that means that thread 1 did not see anything in image
                 #contouring stuff
-                
+                Thread1Image = cv2.inRange(Thread1Image, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
+                #DevmodeDisplayImage("Binary", TargetImage)
                 Thread1Image, Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
 ##                if (DEVMODE) and (len(Contours) > 0): #it hecking slows the program down a lot tho D:<
@@ -271,9 +273,11 @@ class Thread2(threading.Thread):
 ##                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
 ##                    DevmodeDisplayImage("Live", ThreadOneOut)
             
-                x,y,w,h = 0,0,0,0
                 if (Contours != None) and (len(Contours) > 0): # we do not want to run loop if there are no contours.
                     passed = 0 #the number of contours that have passed the test. needed to make sure values are set to -1 if none pass
+                    lastBoxCenterX = BoxCenterX #these are for
+                    lastBoxCenterY = BoxCenterY
+                    
                     for contour in Contours:
                         Thread2Message = "" #reset the message so that we dont get big a lot of text
                         #get area & solidity
@@ -289,25 +293,35 @@ class Thread2(threading.Thread):
                         AspectRatio = w/h
 
                         self.DevmodeShowContour(Area, Solidity, AspectRatio) # show the area and solidity data to the UI
-                        
+
+                        Thread2Message += "\nTests Passed: "
                         #test the area & aspect ratio
                         if(Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_AREA_MIN):
-                            Thread2Message += "\nPassed Area Test."
+                            Thread2Message += "Area"
                             if(Solidity < TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > TARGET_OBJECT_SOLIDITY_LOW):
-                                Thread2Message += "\nPassed Solidity Test."
+                                Thread2Message += ", Solidity"
                                 if(AspectRatio < TARGET_OBJECT_ASPECT_RATIO_HIGH) and (AspectRatio > TARGET_OBJECT_ASPECT_RATIO_LOW):
-                                    Thread2Message += "\nPassed Aspect Ratio Test."
-                                    #yay it passes! now process it
-                                    #Deviation code here
-                                    
-                                    BoxCenterX = int((w/2) +x) #get the cneter of the box in pixels to send to the RIO
-                                    BoxCenterY = int((h/2) +y)
-                                    Thread2Message += "\nBox Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
-                                
+                                    Thread2Message += ", Aspect Ratio"
+                                    #get the center of the box
+                                    w /= 2
+                                    h /=2
+                                    x += w
+                                    y += h
+                                    passed += 1
+                                    #the deviation of each coordinate
+                                    DeviateX = abs(int(x)) - BoxCenterX
+                                    DeviateY = abs(int(y)) - BoxCenterY
+                                    if(BoxCenterX == -1) or ((DeviateX < DEVIATION_MAX) and (DeviateY < DEVIATION_MAX)):
+                                        BoxCenterX = int(x) #make sure they are ints or else we get an error drawing the points
+                                        BoxCenterY = int(y)
+                                        Thread2Message += "\nBox Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+                            
 
                     if passed < 1: #no contours have passed
                         BoxCenterX = -1
                         BoxCenterY = -1
+
+                    
                 else: #After finding them contours, theres no contours. Set the coordinates to -1
                     BoxCenterX = -1
                     BoxCenterY = -1
@@ -459,7 +473,7 @@ def UpdateUI():
 ##    TARGET_OBJECT_SOLIDITY_LOW = Slider_Solidity_Low.get() / 100
 
     #update labels with some time and dev stats
-    Thread1TimeStats = "--- THREAD 1 TIMES ---\n"
+    Thread1TimeStats = "System timer: " + str(time.clock()) + " Seconds\n\n--- THREAD 1 TIMES ---\n"
     Thread2TimeStats = "--- THREAD 2 TIMES ---\n"
     UtilTextOne = ""
 
@@ -482,10 +496,12 @@ def UpdateUI():
     if not THREAD_2.is_alive():
         UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
     
+    UtilTextOne += "recognized box center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+    
     #now set the labels
     Thread1_Time_Text.set(Thread1TimeStats)
     Thread2_Time_Text.set(Thread2TimeStats)
-    UtilText1.set("Thread 1: "+ Thread1Message + "\nThread 2: " + Thread2Message) #Set the thread messages
+    UtilText1.set("Thread 1: "+ Thread1Message + "\nThread 2: " + Thread2Message + "\nMain: " + UtilTextOne) #Set the thread messages
 
 #END METHOD
 
