@@ -247,6 +247,7 @@ class Thread2(threading.Thread):
             Thread2Message += "\nAspect Ratio: " + str(AspectRatio)
         
     def GetContourData(self, contour, x,y,w,h): #returns a bunch of stuff about the contour given.
+        global Thread2Message
         Area = cv2.contourArea(contour)
         
         #getting solidity
@@ -258,7 +259,9 @@ class Thread2(threading.Thread):
 
         return Area, AspectRatio, Solidity
 
-    def TestContour(self, Area, Solidity, AspectRatio): #tests the contour given the parameters. 
+    def TestContour(self, Area, Solidity, AspectRatio): #tests the contour given the parameters.
+        global Thread2Message
+        Thread2Message = "Tests passed: "
         if(Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_AREA_MIN):
             Thread2Message += "Area"
             if(Solidity < TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > TARGET_OBJECT_SOLIDITY_LOW):
@@ -271,11 +274,11 @@ class Thread2(threading.Thread):
 
     #processes the contour and returns the center points
     def ProcessContour(self, x, y, w, h):
+        global Thread2Message
         w /= 2
         h /=2
         x += w
         y += h
-        passed += 1
         #the deviation of each coordinate
         DeviateX = abs(int(x)) - BoxCenterX
         DeviateY = abs(int(y)) - BoxCenterY
@@ -302,6 +305,8 @@ class Thread2(threading.Thread):
 
             Thread1Image = numpy.copy(TargetImage)
             zeros = len(numpy.argwhere(Thread1Image))
+
+            passed = 0 #the number of contours that have passed the test, used for reference to know if we need to set the coords to -1
             if (zeros > TARGET_NONZERO_PIXELS) and (ImageHasContents): # only continue if there are actually contours in the thing. If ImageHasContents is false that means that thread 1 did not see anything in image
                 #contouring stuff
                 Thread1Image = cv2.inRange(Thread1Image, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
@@ -320,24 +325,14 @@ class Thread2(threading.Thread):
                     
                     for contour in Contours:
                         Thread2Message = "" #reset the message so that we dont get big a lot of text
-                        #gets the contour data such as aspect ratio, area, solidity
-                        x,y,w,h = cv2.boundingRect(contour)
-                        Area, AspectRatio, Solidity = self.GetContourData(contour, x,y,w,h)
-                        Thread2Message += "\nTests Passed: "
+                        x,y,w,h = cv2.boundingRect(contour) 
+                        Area, AspectRatio, Solidity = self.GetContourData(contour, x,y,w,h) #gets contour data such as aspect ratio, solidity, area
                         #test the area & aspect ratio
-                        
                         if self.TestContour(Area, Solidity, AspectRatio):
-                            #get the center of the box
-                            BoxCenterX, BoxCenterY = self.ProcessContour(x,y,w,h) #yee yee
-                            #actually sets the global variables
+                            passed += 1
+                            BoxCenterX, BoxCenterY = self.ProcessContour(x,y,w,h) #assigns the box variables
 
-                    if passed < 1: #no contours have passed
-                        BoxCenterX = -1
-                        BoxCenterY = -1
-                else: #After finding them contours, theres no contours. Set the coordinates to -1
-                    BoxCenterX = -1
-                    BoxCenterY = -1
-            else: #There is nothing in the image. Since there wont be any contours lets just save us some time shall we?
+            if passed <= 0:
                 BoxCenterX = -1
                 BoxCenterY = -1
                 
