@@ -106,10 +106,6 @@ kernel = numpy.ones((5,5), numpy.float32)/25 #average the pixels to make the blu
 THREAD_1 = None
 THREAD_2 = None
 
- #for output window
-Stream.set(cv2.CAP_PROP_FRAME_WIDTH, 500) #sets the image size 
-Stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 500)
-
 # --- TKINTER UI UTILITIES --- #
 Master_Window = tk.Tk()
 Slider_High_R = tk.Scale(Master_Window, from_=0, to=255, orient=tk.HORIZONTAL, length=500, label="Target High Red: ")
@@ -311,7 +307,7 @@ class Thread2(threading.Thread):
                 #contouring stuff
                 Thread1Image = cv2.inRange(Thread1Image, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
                 #DevmodeDisplayImage("Binary", TargetImage)
-                Thread1Image, Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
+                Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
 ##                if (DEVMODE) and (len(Contours) > 0): #it hecking slows the program down a lot tho D:<
 ##                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
