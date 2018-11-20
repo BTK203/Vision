@@ -246,6 +246,46 @@ class Thread2(threading.Thread):
             Thread2Message += "\nSolidity:     " + str(Solidity)
             Thread2Message += "\nAspect Ratio: " + str(AspectRatio)
         
+    def GetContourData(self, contour, x,y,w,h): #returns a bunch of stuff about the contour given.
+        Area = cv2.contourArea(contour)
+        
+        #getting solidity
+        BoxArea = w * h
+        Solidity = Area / BoxArea
+        #getting aspect ratio
+        AspectRatio = w/h
+        self.DevmodeShowContour(Area, Solidity, AspectRatio) # show the area and solidity data to the UI
+
+        return Area, AspectRatio, Solidity
+
+    def TestContour(self, Area, Solidity, AspectRatio): #tests the contour given the parameters. 
+        if(Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_AREA_MIN):
+            Thread2Message += "Area"
+            if(Solidity < TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > TARGET_OBJECT_SOLIDITY_LOW):
+                Thread2Message += ", Solidity"
+                if(AspectRatio < TARGET_OBJECT_ASPECT_RATIO_HIGH) and (AspectRatio > TARGET_OBJECT_ASPECT_RATIO_LOW):
+                    Thread2Message += ", Aspect Ratio"
+                    return True
+
+        return False 
+
+    #processes the contour and returns the center points
+    def ProcessContour(self, x, y, w, h):
+        w /= 2
+        h /=2
+        x += w
+        y += h
+        passed += 1
+        #the deviation of each coordinate
+        DeviateX = abs(int(x)) - BoxCenterX
+        DeviateY = abs(int(y)) - BoxCenterY
+        if(BoxCenterX == -1) or ((DeviateX < DEVIATION_MAX) and (DeviateY < DEVIATION_MAX)):
+            centerX = int(x) #make sure they are ints or else we get an error drawing the points
+            centerY = int(y)
+            Thread2Message += "\nBox Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+            return centerX, centerY
+        return -1, -1 #the contour does not pass the deviation test. return -1s
+        
 
     def run(self):
         #Thread two stuff (algorithm steps 6-9)
@@ -280,48 +320,20 @@ class Thread2(threading.Thread):
                     
                     for contour in Contours:
                         Thread2Message = "" #reset the message so that we dont get big a lot of text
-                        #get area & solidity
-                        #area
-                        Area = cv2.contourArea(contour)
+                        #gets the contour data such as aspect ratio, area, solidity
                         x,y,w,h = cv2.boundingRect(contour)
-                        
-                        #getting solidity
-                        BoxArea = w * h
-                        Solidity = Area / BoxArea
-
-                        #getting aspect ratio
-                        AspectRatio = w/h
-
-                        self.DevmodeShowContour(Area, Solidity, AspectRatio) # show the area and solidity data to the UI
-
+                        Area, AspectRatio, Solidity = self.GetContourData(contour, x,y,w,h)
                         Thread2Message += "\nTests Passed: "
                         #test the area & aspect ratio
-                        if(Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_AREA_MIN):
-                            Thread2Message += "Area"
-                            if(Solidity < TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > TARGET_OBJECT_SOLIDITY_LOW):
-                                Thread2Message += ", Solidity"
-                                if(AspectRatio < TARGET_OBJECT_ASPECT_RATIO_HIGH) and (AspectRatio > TARGET_OBJECT_ASPECT_RATIO_LOW):
-                                    Thread2Message += ", Aspect Ratio"
-                                    #get the center of the box
-                                    w /= 2
-                                    h /=2
-                                    x += w
-                                    y += h
-                                    passed += 1
-                                    #the deviation of each coordinate
-                                    DeviateX = abs(int(x)) - BoxCenterX
-                                    DeviateY = abs(int(y)) - BoxCenterY
-                                    if(BoxCenterX == -1) or ((DeviateX < DEVIATION_MAX) and (DeviateY < DEVIATION_MAX)):
-                                        BoxCenterX = int(x) #make sure they are ints or else we get an error drawing the points
-                                        BoxCenterY = int(y)
-                                        Thread2Message += "\nBox Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
-                            
+                        
+                        if self.TestContour(Area, Solidity, AspectRatio):
+                            #get the center of the box
+                            BoxCenterX, BoxCenterY = self.ProcessContour(x,y,w,h) #yee yee
+                            #actually sets the global variables
 
                     if passed < 1: #no contours have passed
                         BoxCenterX = -1
                         BoxCenterY = -1
-
-                    
                 else: #After finding them contours, theres no contours. Set the coordinates to -1
                     BoxCenterX = -1
                     BoxCenterY = -1
