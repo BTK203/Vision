@@ -8,7 +8,6 @@
 #                                             #
 ###############################################
 
-
 #    __________________________________       
 #    Algorithm:                               
 #    1). Get image                          
@@ -21,13 +20,10 @@
 #    8). get center point of remaining contour (if it exists)
 #    9). Send values to other program to send 
 #         to roboRIO (if #8 runs)
-#
-#
-#    ____________________________________     
+#   ____________________________________     
 #    OTHER REMARKS:                           
-#    --its gui time
+#    --hey guys it works
 #    ____________________________________
-
 
 from __future__ import division
 import numpy
@@ -36,13 +32,6 @@ import threading
 import time
 import Tkinter as tk
 from decimal import *
-
-
-
-
-
-#   --- CONSTANT VALUES ---   #
-
 
 # - IMAGE PROCESSOR SETTINGS - #
 
@@ -67,9 +56,7 @@ TARGET_OBJECT_ASPECT_RATIO_HIGH = Decimal(1.25)
 TARGET_OBJECT_ASPECT_RATIO_LOW = Decimal(0.65)
 DEVIATION_MAX = 15 #amount in pixels the target can jump for the program to believe it
 
-
 # --- UTILITIES -- #
-
 #Devmode utilities
 Devwindow = None #window where settings can be edited
 TitleLabel = None
@@ -80,7 +67,6 @@ ProgramEnding = False
 # --- ALL PROGRAM UTILITY VALUES --- # basically some values that arent settings that all threads might end up using
 OriginalImage = None
 TimerStartTime = 0
-
 
 # --- THREAD 1 UTILITY VALUES --- #
 Contours = None
@@ -96,7 +82,6 @@ ThreadTwoTimes = []
 Thread_Two_Last_Loop_Time = 0 # main thread can see if it freezes or not
 ImageHasContents = True # value that thread 1 sets to tell thread two if there was anything in the image or not. Only set to false if Thread 1 saw nothing in the image.
 Thread2Message = "" # this string also gets displayed on the UI every loop of the main thread
-
 
 #Process utilities
 Stream = cv2.VideoCapture(0)
@@ -140,7 +125,6 @@ Thread1_Time_Label = tk.Label(Master_Window, textvariable=Thread1_Time_Text, anc
 Thread2_Time_Label = tk.Label(Master_Window, textvariable=Thread2_Time_Text, anchor=tk.W)
 UtilLabel1 = tk.Label(Master_Window, textvariable=UtilText1, anchor=tk.W)
 
-
 # --- THREAD UTILITY METHODS --- #
 
 def DevmodeDisplayImage(window, image):
@@ -148,7 +132,6 @@ def DevmodeDisplayImage(window, image):
     if DEVMODE:
         cv2.imshow(window, image)
         cv2.waitKey(5)
-
 
 # --- THREADS --- #
 
@@ -165,7 +148,6 @@ class Thread1(threading.Thread):
         self.stop = True
         print("Thread 1 attempting to terminate")
     
-
     def run(self):
         print("Thread 1 init")
         #Thread one stuff (algorithm steps 1-5)
@@ -177,7 +159,7 @@ class Thread1(threading.Thread):
         global Thread_One_Last_Loop_Time
         global ImageHasContents
         global Thread1Message
-        
+
         Binary = None
 
         while (Stream.isOpened()):
@@ -218,8 +200,6 @@ class Thread1(threading.Thread):
             ThreadOneTimes.append(ThreadTime)
             Thread_One_Last_Loop_Time = time.clock()
             
-
-
 class Thread2(threading.Thread):
     
     stop = False
@@ -285,7 +265,6 @@ class Thread2(threading.Thread):
             return centerX, centerY
         return -1, -1 #the contour does not pass the deviation test. return -1s
         
-
     def run(self):
         #Thread two stuff (algorithm steps 6-9)
         print("thread 2 init")
@@ -316,7 +295,7 @@ class Thread2(threading.Thread):
             
                 if (Contours != None) and (len(Contours) > 0): # we do not want to run loop if there are no contours.
                     passed = 0 #the number of contours that have passed the test. needed to make sure values are set to -1 if none pass
-                    lastBoxCenterX = BoxCenterX #these are for
+                    lastBoxCenterX = BoxCenterX
                     lastBoxCenterY = BoxCenterY
                     
                     for contour in Contours:
@@ -341,8 +320,6 @@ class Thread2(threading.Thread):
                 print("Thread 2 terminating")
                 return
         
-
-
 def DispCurrentValues(): #displays all the current modifiable values.
     print(" --- CURRENT VALUES --- ")
     print("Color High Bound:      " + str(TARGET_COLOR_HIGH))
@@ -358,8 +335,6 @@ def DispCurrentValues(): #displays all the current modifiable values.
     print("Aspect ratio low:      " + str(TARGET_OBJECT_ASPECT_RATIO_LOW))
     print("\r\n\r\n")
 
-
-
 # --- TIME CALCULATION METHODS --- #
 #these should be pretty easy to follow... calculate a bunch of different times for the threads
 def Thread1AverageTime():
@@ -370,7 +345,6 @@ def Thread1AverageTime():
     avg /= len(ThreadOneTimes)
     return avg
     
-
 def Thread1MaxTime():
     maximum = 0
     for time in ThreadOneTimes:
@@ -411,7 +385,6 @@ def Thread2MinTime():
 
     return minimum
 
-
 # --- UTILITY METHODS --- #
 
 def Kill():
@@ -424,22 +397,21 @@ def Kill():
         DispCurrentValues()
 
     #kill the program family
-    THREAD_1.terminate()
+    THREAD_1.terminate() #raises the ending flag on the threads, telling them to stop
     THREAD_2.terminate()
-    ProgramEnding = True
-    time.sleep(2)
-    cv2.destroyAllWindows()
+    ProgramEnding = True # main thread ending flag put up here
+    time.sleep(2) # waits for threads to stop as well as main loop
+    cv2.destroyAllWindows() # disposes opencv UI windows
     print("Thread 1 running: "+str(THREAD_1.is_alive()))
     print("Thread 2 running: "+str(THREAD_2.is_alive()))
 
-    while(THREAD_1.is_alive()) or (THREAD_2.is_alive()):
+    while(THREAD_1.is_alive()) or (THREAD_2.is_alive()): # if the threads are still alive, wait for them to die
         print ("Waiting for threads to terminate...")
         print("Thread 1 running: "+str(THREAD_1.is_alive()))
         print("Thread 2 running: "+str(THREAD_2.is_alive()))
         time.sleep(1)
     
-    quit()
-
+    quit() #stops running program
 
 def UpdateUI():
     #method called from Watch() that updates the UI in the TKinter window.
@@ -472,8 +444,6 @@ def UpdateUI():
     TARGET_NONZERO_PIXELS = Slider_Nonzero_Pixels.get()
     TARGET_CONTOUR_AREA_MAX = Slider_Area_Max.get()
     TARGET_CONTOUR_AREA_MIN = Slider_Area_Min.get()
-##    TARGET_OBJECT_SOLIDITY_HIGH = Slider_Solidity_High.get() / 100 #these ones must be divided by 100 since they are decimals shown as percentages
-##    TARGET_OBJECT_SOLIDITY_LOW = Slider_Solidity_Low.get() / 100
 
     #update labels with some time and dev stats
     Thread1TimeStats = "System timer: " + str(time.clock()) + " Seconds\n\n--- THREAD 1 TIMES ---\n"
@@ -485,7 +455,7 @@ def UpdateUI():
     Thread1TimeStats += " Average Loop Time: " + str(Thread1AverageTime()) + "ms\n"
     Thread1TimeStats += " Longest Loop Time: " + str(Thread1MaxTime()) + "ms\n"
     Thread1TimeStats += "Shortest Loop Time: " + str(Thread1MinTime()) + "ms\n\n"
-    
+    #the thread 2 time stuff
     Thread2TimeStats += "Last Recorded loop: " + str(ThreadTwoTimes[len(ThreadTwoTimes) -1]) + "ms\n"
     Thread2TimeStats += " Average Loop Time: " + str(Thread2AverageTime()) + "ms\n"
     Thread2TimeStats += " Longest Loop Time: " + str(Thread2MaxTime()) + "ms\n"
@@ -506,9 +476,6 @@ def UpdateUI():
     Thread2_Time_Text.set(Thread2TimeStats)
     UtilText1.set("Thread 1: "+ Thread1Message + "\nThread 2: " + Thread2Message + "\nMain: " + UtilTextOne) #Set the thread messages
 
-#END METHOD
-
-
 def UpdateOutputImage():
     #show output image with point drawn
     img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
@@ -517,8 +484,6 @@ def UpdateOutputImage():
         
     cv2.imshow("Output", img) # show the image in the window
     cv2.waitKey(5)
-#END METHOD
-
 
 def CheckThreadConditions():
     #checks to see if the threads are still running. If they are not for whatever reason, reinstantiate them.
@@ -549,8 +514,6 @@ def CheckThreadConditions():
 
         UtilTextOne = "MESSAGE: Thread 2 revived."
         UtilText1.set(UtilTextOne)
-#END METHOD
-
 
 def Watch():
     #Watches over all threads and outputs displays if told to.
@@ -563,28 +526,15 @@ def Watch():
         if ProgramEnding: #but first lets check to see if the ending flag is up
                 print("Vision man is going away now...")
                 Master_Window.destroy() # say goodbye to settings and output window
-                break #stop loop is the program ending flag is upif ProgramEnding: #but first lets check to see if the ending flag is up
+                break #stop loop is the program ending flag is up
     
-        if DEVMODE: # grabs settings from the settings window and applies them
+        if DEVMODE:
+            UpdateUI() #updates the UI with updated values such as box center, contour data, etc
+            UpdateOutputImage() #updates the output image with the contour at the center
 
-            # --- UPDATE UI --- #
-            UpdateUI()
-
-            # --- IMAGING --- #
-            UpdateOutputImage()
-            
         CheckThreadConditions()
         #send values to the RoboRIO here.
-
-        
-#END METHOD
-
-# --- BUTTON EVENTS --- #
-def QuitButtonClicked(): # kills the program
-    print("Killing the program...")
-    Kill()
-
-
+     
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
     #start the stuff going
@@ -622,7 +572,7 @@ def Vision():
             print("Initializing in Developer Mode.\r\n\r\n")
             #tkinter!!!
 
-            #--- set and grid the UI elements --- #
+            # --- set and grid the UI elements --- #
 
             Slider_High_R.set(TARGET_COLOR_HIGH[2])
             Slider_High_G.set(TARGET_COLOR_HIGH[1])
@@ -651,7 +601,7 @@ def Vision():
             Slider_Area_Min.grid(row=10, column=0)
             Slider_Solidity_High.grid(row=11, column=0)
             Slider_Solidity_Low.grid(row=12,column=0)
-            tk.Button(Master_Window, text="Kill Program", width=50, command=QuitButtonClicked).grid(row=8, column=1)
+            tk.Button(Master_Window, text="Kill Program", width=50, command=Kill).grid(row=8, column=1)
 
             #grid the labels and things
             #pack the labels
