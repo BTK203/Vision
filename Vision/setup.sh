@@ -12,4 +12,7 @@ sudo apt-get --assume-yes install python-opencv
 echo "${blue}Installing Tkinter UI${NC}"
 sudo apt-get --assume-yes install python-tk
 
+echo "${blue}Installing numpy${NC}"
+sudo apt-get --assume-yes install python-numpy
+
 echo "${green}Libraries set up and ready to go.${NC}"
