@@ -540,7 +540,7 @@ def Watch():
 
         CheckThreadConditions()
         #send values to the RoboRIO here.
-        sock.sendto(BoxCenterX + "," + BoxCenterY, (UDP_IP, UDP_PORT))
+        sock.sendto(str(BoxCenterX) + "," +str(BoxCenterY), (UDP_IP, UDP_PORT))
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
