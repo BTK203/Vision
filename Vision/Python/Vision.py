@@ -30,6 +30,7 @@ import numpy
 import cv2
 import threading
 import time
+import socket #for UDP
 import Tkinter as tk
 from decimal import *
 
@@ -63,6 +64,11 @@ TitleLabel = None
 
 #global utilities
 ProgramEnding = False
+
+UDP_IP = "10.39.65.100" #RobotRIO IP to send info to
+UDP_PORT = 3695 #yee yee
+sock = socket.socket(socket.AF_INET, # Internet
+                     socket.SOCK_DGRAM) # UDP
 
 # --- ALL PROGRAM UTILITY VALUES --- # basically some values that arent settings that all threads might end up using
 OriginalImage = None
@@ -534,6 +540,7 @@ def Watch():
 
         CheckThreadConditions()
         #send values to the RoboRIO here.
+        sock.sendto(BoxCenterX + "," + BoxCenterY, (UDP_IP, UDP_PORT))
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
