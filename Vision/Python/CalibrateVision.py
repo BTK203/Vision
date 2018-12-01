@@ -33,7 +33,10 @@ def getOtherColor():
     b = int(input("b:"))
     g = int(input("g:"))
     r = int(input("r:"))
-    return b, g, r #return the colors
+    bl = int(input("b low:"))
+    gl = int(input("g low:"))
+    rl = int(input("r low:"))
+    return b, g, r, bl, gl, rl #return the colors
 
 def PutTargetsInRange(): #puts the target color values in range (0-255)
     global Target_High
@@ -63,13 +66,13 @@ def TakeAndProcessImage():
     _, frame = Stream.read() #take the image first
     
     if raw_input("Would you like to use " +ColorText.get() + " To process the image? [y, n]") == "n":
-        b,g,r = getOtherColor()
-        Target_High[0] = b + 25 #set the targets now
-        Target_High[1] = g + 25
-        Target_High[2] = r + 25
-        Target_Low[0] = b - 25
-        Target_Low[1] = g - 25
-        Target_Low[2] = r - 25
+        b,g,r, bl, gl, rl = getOtherColor()
+        Target_High[0] = b  #set the targets now
+        Target_High[1] = g 
+        Target_High[2] = r 
+        Target_Low[0] = bl
+        Target_Low[1] = gl
+        Target_Low[2] = rl
         PutTargetsInRange()
         
     _, frame = cv2.threshold(frame,THRESHOLD_VAL, THRESHOLD_HIGH, cv2.THRESH_BINARY)
@@ -77,7 +80,7 @@ def TakeAndProcessImage():
     frame = cv2.dilate(frame, kernel)
     output = numpy.copy(frame) #output image to draw on and show to the user
     frame = cv2.inRange(frame, Target_Low, Target_High)
-    frame, contours, hierarchy = cv2.findContours(frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if len(contours) > 0:
         for contour in contours:
