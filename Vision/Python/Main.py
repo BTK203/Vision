@@ -22,11 +22,12 @@
 #         to roboRIO (if #8 runs)
 #   ____________________________________     
 #    OTHER REMARKS:                           
-#    --hey guys it works
+#    --its being cleaned dont worry
 #    ____________________________________
 
 #dont move, needs to be at beginning
 from __future__ import division
+from __future__ import print_function
 
 #import the other vision files
 import Settings
@@ -61,10 +62,22 @@ def Watch():
         if Settings.DEVMODE:
             UI.UpdateUI() #updates the UI with updated values such as box center, contour data, etc
             UI.UpdateOutputImage() #updates the output image with the contour at the center
-
+        else:
+            #not devmode, we should print the coordinates out
+            print("(" + str(Utilities.BoxCenterX) + ", " + str(Utilities.BoxCenterY) + ")", end='\r')
+        
         Utilities.CheckThreadConditions()
-        #send values to the RoboRIO here.
-        Utilities.sock.sendto(str(Utilities.BoxCenterX) + "," +str(Utilities.BoxCenterY), (Settings.UDP_IP, Settings.UDP_PORT))
+        
+        #send values to the RoboRIO.
+        sendX = -1
+        sendY = -1
+        if (Utilities.BoxCenterX > -1) and (Utilities.BoxCenterY > -1):
+            sendX = int( (Utilities.BoxCenterX / 200) * 1280 ) #scales to 720p resolution
+            sendY = int( (Utilities.BoxCenterY / 200) * 720 )
+
+        UDPMessage = str(sendX) + "," +str(sendY) #our message!
+        Utilities.MainThreadMessage = "\nSending to the RIO: " + UDPMessage
+        Utilities.sock.sendto(UDPMessage, (Settings.UDP_IP, Settings.UDP_PORT)) #haha this is what actually sends it
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():

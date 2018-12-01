@@ -87,9 +87,8 @@ def UpdateUI():
 
     if not Utilities.THREAD_2.is_alive():
         UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
-    
-    UtilTextOne += "recognized box center: (" + str(Utilities.BoxCenterX) + ", " + str(Utilities.BoxCenterY) + ")"
-    
+
+    UtilTextOne += "\n\nMain Thread: " + Utilities.MainThreadMessage #the message to display from the main thread    
     #now set the labels
     Thread1_Time_Text.set(Utilities.Thread1TimeStats)
     Thread2_Time_Text.set(Utilities.Thread2TimeStats)
@@ -101,8 +100,8 @@ def UpdateOutputImage():
     if (Utilities.BoxCenterX > -1) and (Utilities.BoxCenterY > -1):
         cv2.drawContours(img, numpy.array( [[[Utilities.BoxCenterX, Utilities.BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
         
-    #cv2.imshow("Output", img) # show the image in the window
-    #cv2.waitKey(5)
+    cv2.imshow("Output", img) # show the image in the window
+    cv2.waitKey(5)
 
 
 def InitUI():

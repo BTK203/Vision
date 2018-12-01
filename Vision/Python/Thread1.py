@@ -41,7 +41,7 @@ class Thread1(threading.Thread):
             if returnVal == True:
 
                 # now some simple image processing
-                OriginalImage = numpy.copy(Binary)
+                Utilities.OriginalImage = numpy.copy(Binary)
                 #DevmodeDisplayImage("Take", Binary)
                 ret, Binary = cv2.threshold(Binary,Settings.THRESHOLD_LOW, Settings.THRESHOLD_HIGH ,cv2.THRESH_BINARY) #Threshold to increase image contrast            
                 #DevmodeDisplayImage("Threshold", Binary)
@@ -62,7 +62,7 @@ class Thread1(threading.Thread):
             #calculate loop time if devmode
             if self.stop:
                 print("Thread 1 terminating")
-                return
+                return #stop
                 
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds

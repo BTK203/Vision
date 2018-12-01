@@ -1,5 +1,4 @@
 
-
 import Settings
 import Thread1
 import Thread2
@@ -24,8 +23,13 @@ sock = socket.socket(socket.AF_INET, # Internet
                      socket.SOCK_DGRAM) # UDP
 
 # --- ALL PROGRAM UTILITY VALUES --- # basically some values that arent settings that all threads might end up using
+BoxCenterX = -1
+BoxCenterY = -1
 OriginalImage = None
 TimerStartTime = 0
+
+# --- MAIN THREAD UTILITY VALUES --- #
+MainThreadMessage = ""
 
 # --- THREAD 1 UTILITY VALUES --- #
 Contours = None
@@ -35,15 +39,13 @@ TargetImage = None
 Thread1Message = "" # this string gets displayed on the UI every loop of the main thread
 
 # --- THREAD 2 UTILITY VALUES --- #
-BoxCenterX = -1
-BoxCenterY = -1
 ThreadTwoTimes = []
 Thread_Two_Last_Loop_Time = 0 # main thread can see if it freezes or not
 ImageHasContents = True # value that thread 1 sets to tell thread two if there was anything in the image or not. Only set to false if Thread 1 saw nothing in the image.
 Thread2Message = "" # this string also gets displayed on the UI every loop of the main thread
 
 #Process utilities
-Stream = cv2.VideoCapture(0)
+Stream = cv2.VideoCapture(0) # the camera (well, the stream reading the camera)
 kernel = numpy.ones((5,5), numpy.float32)/25 #average the pixels to make the blur kernel
 
 #Threads
@@ -62,17 +64,17 @@ def DevmodeDisplayImage(window, image):
 
 def DispCurrentValues(): #displays all the current modifiable values.
     print(" --- CURRENT VALUES --- ")
-    print("Color High Bound:      " + str(TARGET_COLOR_HIGH))
-    print("Color Low Bound:       " + str(TARGET_COLOR_LOW))
-    print("Threshold High Bound:  " + str(THRESHOLD_HIGH))
-    print("Threshold Low Bound:   " + str(THRESHOLD_LOW))
-    print("Target nonzero pixels: " + str(TARGET_NONZERO_PIXELS))
-    print("Contour Area Max:      " + str(TARGET_CONTOUR_AREA_MAX))
-    print("Contour Area Min:      " + str(TARGET_CONTOUR_AREA_MIN))
-    print("Solidity High:         " + str(TARGET_OBJECT_SOLIDITY_HIGH))
-    print("Solidity Low:          " + str(TARGET_OBJECT_SOLIDITY_LOW))
-    print("Aspect ratio high:     " + str(TARGET_OBJECT_ASPECT_RATIO_HIGH))
-    print("Aspect ratio low:      " + str(TARGET_OBJECT_ASPECT_RATIO_LOW))
+    print("Color High Bound:      " + str(Settings.TARGET_COLOR_HIGH))
+    print("Color Low Bound:       " + str(Settings.TARGET_COLOR_LOW))
+    print("Threshold High Bound:  " + str(Settings.THRESHOLD_HIGH))
+    print("Threshold Low Bound:   " + str(Settings.THRESHOLD_LOW))
+    print("Target nonzero pixels: " + str(Settings.TARGET_NONZERO_PIXELS))
+    print("Contour Area Max:      " + str(Settings.TARGET_CONTOUR_AREA_MAX))
+    print("Contour Area Min:      " + str(Settings.TARGET_CONTOUR_AREA_MIN))
+    print("Solidity High:         " + str(Settings.TARGET_OBJECT_SOLIDITY_HIGH))
+    print("Solidity Low:          " + str(Settings.TARGET_OBJECT_SOLIDITY_LOW))
+    print("Aspect ratio high:     " + str(Settings.TARGET_OBJECT_ASPECT_RATIO_HIGH))
+    print("Aspect ratio low:      " + str(Settings.TARGET_OBJECT_ASPECT_RATIO_LOW))
     print("\r\n\r\n")
 
 
@@ -137,13 +139,13 @@ def Kill():
     
     Stream.release()
 
-    if DEVMODE: #print out some final settings if in devmode   
+    if Settings.DEVMODE: #print out some final settings if in devmode   
         DispCurrentValues()
 
     #kill the program family
+    ProgramEnding = True # main thread ending flag put up here
     THREAD_1.terminate() #raises the ending flag on the threads, telling them to stop
     THREAD_2.terminate()
-    ProgramEnding = True # main thread ending flag put up here
     time.sleep(2) # waits for threads to stop as well as main loop
     cv2.destroyAllWindows() # disposes opencv UI windows
     print("Thread 1 running: "+str(THREAD_1.is_alive()))
@@ -164,11 +166,12 @@ def CheckThreadConditions():
     global THREAD_1
     global THREAD_2
     
-    LastResponse1 = time.clock() - Thread_One_Last_Loop_Time
+    LastResponse1 = time.clock() - Thread_One_Last_Loop_Time #gets the time since the last thread update
     LastResponse2 = time.clock() - Thread_Two_Last_Loop_Time
     
     if ((not ProgramEnding) and (not THREAD_1.is_alive())) or (LastResponse1 > 1): #last response is in seconds btw
         #Thread 1 has been killed, errored out, or has frozen. Revive it.
+        print("Reviving Thread 1")
         THREAD_1.terminate()
         time.sleep(0.1) # wait for thread to fully terminate
         THREAD_1 = Thread1.Thread1(1, "Thread 1", 1) #create and start a new thread 1
@@ -178,7 +181,8 @@ def CheckThreadConditions():
         UI.UtilText1.set(UtilTextOne)
 
     if ((not ProgramEnding) and (not THREAD_2.is_alive())) or (LastResponse2 > 1):
-        #same thing for thread2. if it errors out, revive it
+        #same thing for thread2. if it stops, revive it
+        print("Reviving Thread 2")
         THREAD_2.terminate()
         time.sleep(0.1)
         THREAD_2 = Thread2.Thread2(2, "Thread 2", 2)

@@ -1,4 +1,6 @@
 
+from __future__ import division
+
 #vision files
 import Settings
 import Thread1
@@ -48,13 +50,13 @@ class Thread2(threading.Thread):
         return Area, AspectRatio, Solidity
 
     def TestContour(self, Area, Solidity, AspectRatio): #tests the contour given the parameters.
-        Thread2Message = "Tests passed: "
+        Utilities.Thread2Message += "\nTests passed: "
         if(Area < Settings.TARGET_CONTOUR_AREA_MAX) and (Area > Settings.TARGET_CONTOUR_AREA_MIN):
-            Thread2Message += "Area"
+            Utilities.Thread2Message += "Area"
             if(Solidity < Settings.TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > Settings.TARGET_OBJECT_SOLIDITY_LOW):
-                Thread2Message += ", Solidity"
+                Utilities.Thread2Message += ", Solidity"
                 if(AspectRatio < Settings.TARGET_OBJECT_ASPECT_RATIO_HIGH) and (AspectRatio > Settings.TARGET_OBJECT_ASPECT_RATIO_LOW):
-                    Thread2Message += ", Aspect Ratio"
+                    Utilities.Thread2Message += ", Aspect Ratio"
                     return True
 
         return False 
@@ -96,7 +98,7 @@ class Thread2(threading.Thread):
                 #contouring stuff
                 Thread1Image = cv2.inRange(Thread1Image, Settings.TARGET_COLOR_LOW, Settings.TARGET_COLOR_HIGH) # convert to binary
                 #DevmodeDisplayImage("Binary", TargetImage)
-                _,Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
+                Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
 ##                if (DEVMODE) and (len(Contours) > 0): #it hecking slows the program down a lot tho D:<
 ##                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
@@ -118,8 +120,8 @@ class Thread2(threading.Thread):
                             Utilities.BoxCenterX, Utilities.BoxCenterY = self.ProcessContour(x,y,w,h) #assigns the box variables
 
             if passed <= 0:
-                BoxCenterX = -1
-                BoxCenterY = -1
+                Utilities.BoxCenterX = -1
+                Utilities.BoxCenterY = -1
                 
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds
