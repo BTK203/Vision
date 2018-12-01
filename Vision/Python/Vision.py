@@ -41,7 +41,7 @@ DEVMODE = True #Option to run in developer mode. Displays all output and uses UI
 
 #Thread one process settings
 TARGET_COLOR_LOW = numpy.array( [0,220,0] ) #low color bound (BGR)
-TARGET_COLOR_HIGH = numpy.array( [0,255,0] ) #high color bound(BGR)
+TARGET_COLOR_HIGH = numpy.array( [255,255,0] ) #high color bound(BGR)
 TARGET_NONZERO_PIXELS = 1500
 THRESHOLD_LOW = 57
 THRESHOLD_HIGH = 255
@@ -65,7 +65,7 @@ TitleLabel = None
 #global utilities
 ProgramEnding = False
 
-UDP_IP = "10.39.65.100" #RobotRIO IP to send info to
+UDP_IP = "10.36.95.100" #RobotRIO IP to send info to
 UDP_PORT = 3695 #yee yee
 sock = socket.socket(socket.AF_INET, # Internet
                      socket.SOCK_DGRAM) # UDP
@@ -261,12 +261,14 @@ class Thread2(threading.Thread):
         h /=2
         x += w
         y += h
+        
         #the deviation of each coordinate
         DeviateX = abs(int(x)) - BoxCenterX
         DeviateY = abs(int(y)) - BoxCenterY
         if(BoxCenterX == -1) or ((DeviateX < DEVIATION_MAX) and (DeviateY < DEVIATION_MAX)):
             centerX = int(x) #make sure they are ints or else we get an error drawing the points
             centerY = int(y)
+
             Thread2Message += "\nBox Center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
             return centerX, centerY
         return -1, -1 #the contour does not pass the deviation test. return -1s
@@ -291,23 +293,20 @@ class Thread2(threading.Thread):
             if (zeros > TARGET_NONZERO_PIXELS) and (ImageHasContents): # only continue if there are actually contours in the thing. If ImageHasContents is false that means that thread 1 did not see anything in image
                 #contouring stuff
                 Thread1Image = cv2.inRange(Thread1Image, TARGET_COLOR_LOW, TARGET_COLOR_HIGH) # convert to binary
-                #DevmodeDisplayImage("Binary", TargetImage)
+                #DevmodeDisplayImage("Binary", Thread1Image)
                 Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
-##                if (DEVMODE) and (len(Contours) > 0): #it hecking slows the program down a lot tho D:<
-##                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
-##                    cv2.drawContours(ThreadOneOut, Contours, -1, (255, 255, 0),1) # draw the contours(they will appear white because the image is binary)
-##                    DevmodeDisplayImage("Live", ThreadOneOut)
-            
+                Thread2Message = "\nContours Found: " + str(len(Contours)) + "\n"
+
                 if (Contours != None) and (len(Contours) > 0): # we do not want to run loop if there are no contours.
                     passed = 0 #the number of contours that have passed the test. needed to make sure values are set to -1 if none pass
                     lastBoxCenterX = BoxCenterX
                     lastBoxCenterY = BoxCenterY
                     
                     for contour in Contours:
-                        Thread2Message = "" #reset the message so that we dont get big a lot of text
                         x,y,w,h = cv2.boundingRect(contour) 
                         Area, AspectRatio, Solidity = self.GetContourData(contour, x,y,w,h) #gets contour data such as aspect ratio, solidity, area
+                        self.DevmodeShowContour(Area, Solidity, AspectRatio)
                         #test the area & aspect ratio
                         if self.TestContour(Area, Solidity, AspectRatio):
                             passed += 1
@@ -419,7 +418,7 @@ def Kill():
     
     quit() #stops running program
 
-def UpdateUI():
+def UpdateUI(scaledBoxX, scaledBoxY):
     #method called from Watch() that updates the UI in the TKinter window.
     #import the global vars for mutation
     global TARGET_COLOR_HIGH
@@ -475,7 +474,7 @@ def UpdateUI():
     if not THREAD_2.is_alive():
         UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
     
-    UtilTextOne += "recognized box center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+    UtilTextOne += "recognized box center: (" + str(scaledBoxX) + ", " + str(scaledBoxY) + ")"
     
     #now set the labels
     Thread1_Time_Text.set(Thread1TimeStats)
@@ -529,18 +528,27 @@ def Watch():
     print("Starting...")
     while True:
 
+        #send values to the RoboRIO here.
+        sendX = -1
+        sendY = -1
+        if (BoxCenterX > -1) and (BoxCenterY > -1):
+            sendX = int( (BoxCenterX / 200) * 1280 )
+            sendY = int( (BoxCenterY / 200) * 720 )
+
+            
+        sock.sendto(str(int(sendX)) + "," +str(int(sendY)), (UDP_IP, UDP_PORT)) #haha this is what actually sends it
+
         if ProgramEnding: #but first lets check to see if the ending flag is up
                 print("Vision man is going away now...")
                 Master_Window.destroy() # say goodbye to settings and output window
                 break #stop loop is the program ending flag is up
     
         if DEVMODE:
-            UpdateUI() #updates the UI with updated values such as box center, contour data, etc
+            UpdateUI(sendX, sendY) #updates the UI with updated values such as box center, contour data, etc
             UpdateOutputImage() #updates the output image with the contour at the center
 
         CheckThreadConditions()
-        #send values to the RoboRIO here.
-        sock.sendto(str(BoxCenterX) + "," +str(BoxCenterY), (UDP_IP, UDP_PORT))
+
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
