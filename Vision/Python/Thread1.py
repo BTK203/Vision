@@ -28,14 +28,6 @@ class Thread1(threading.Thread):
     def run(self):
         print("Thread 1 init")
         #Thread one stuff (algorithm steps 1-5)
-        global ThreadOneTimes
-        global Contours
-        global OriginalImage
-        global CenterPixelColor
-        global TargetImage
-        global Thread_One_Last_Loop_Time
-        global ImageHasContents
-        global Thread1Message
 
         Binary = None
 
@@ -75,4 +67,4 @@ class Thread1(threading.Thread):
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds
             Utilities.ThreadOneTimes.append(ThreadTime)
-            Thread_One_Last_Loop_Time = time.clock()
+            Utilities.Thread_One_Last_Loop_Time = time.clock()

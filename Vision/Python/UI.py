@@ -9,6 +9,8 @@ import Utilities
 #required packages
 import Tkinter as tk
 import time
+import numpy
+import cv2
 
 # --- TKINTER UI UTILITIES --- #
 Master_Window = tk.Tk()
@@ -63,74 +65,47 @@ def UpdateUI():
     Settings.TARGET_CONTOUR_AREA_MIN = Slider_Area_Min.get()
 
     #update labels with some time and dev stats
-    Thread1TimeStats = "System timer: " + str(time.clock()) + " Seconds\n\n--- THREAD 1 TIMES ---\n"
-    Thread2TimeStats = "--- THREAD 2 TIMES ---\n"
+    Utilities.Thread1TimeStats = "System timer: " + str(time.clock()) + " Seconds\n\n--- THREAD 1 TIMES ---\n"
+    Utilities.Thread2TimeStats = "--- THREAD 2 TIMES ---\n"
     UtilTextOne = ""
 
     #calculate the times for the processes and put them into strings to be displayed in the window
-    Thread1TimeStats += "Last Recorded loop: " + str(Utilities.ThreadOneTimes[len(ThreadOneTimes) -1]) + "ms\n"
-    Thread1TimeStats += " Average Loop Time: " + str(Utilities.Thread1AverageTime()) + "ms\n"
-    Thread1TimeStats += " Longest Loop Time: " + str(Utilities.Thread1MaxTime()) + "ms\n"
-    Thread1TimeStats += "Shortest Loop Time: " + str(Utilities.Thread1MinTime()) + "ms\n\n"
+    Utilities.Thread1TimeStats += "Last Recorded loop: " + str(Utilities.ThreadOneTimes[len(Utilities.ThreadOneTimes) -1]) + "ms\n"
+    Utilities.Thread1TimeStats += " Average Loop Time: " + str(Utilities.Thread1AverageTime()) + "ms\n"
+    Utilities.Thread1TimeStats += " Longest Loop Time: " + str(Utilities.Thread1MaxTime()) + "ms\n"
+    Utilities.Thread1TimeStats += "Shortest Loop Time: " + str(Utilities.Thread1MinTime()) + "ms\n\n"
     #the thread 2 time stuff
-    Thread2TimeStats += "Last Recorded loop: " + str(Utilities.ThreadTwoTimes[len(ThreadTwoTimes) -1]) + "ms\n"
-    Thread2TimeStats += " Average Loop Time: " + str(Utilities.Thread2AverageTime()) + "ms\n"
-    Thread2TimeStats += " Longest Loop Time: " + str(Utilities.Thread2MaxTime()) + "ms\n"
-    Thread2TimeStats += "Shortest Loop Time: " + str(Utilities.Thread2MinTime()) + "ms\n\n"
+    Utilities.Thread2TimeStats += "Last Recorded loop: " + str(Utilities.ThreadTwoTimes[len(Utilities.ThreadTwoTimes) -1]) + "ms\n"
+    Utilities.Thread2TimeStats += " Average Loop Time: " + str(Utilities.Thread2AverageTime()) + "ms\n"
+    Utilities.Thread2TimeStats += " Longest Loop Time: " + str(Utilities.Thread2MaxTime()) + "ms\n"
+    Utilities.Thread2TimeStats += "Shortest Loop Time: " + str(Utilities.Thread2MinTime()) + "ms\n\n"
 
     #Update the Utility Label based on some events and which mode the program is running in. 
 
-    if not THREAD_1.is_alive():
-        Utilities.UtilTextOne += "\nWARNING: Thread 1 has stopped running!"
+    if not Utilities.THREAD_1.is_alive():
+        UtilTextOne += "\nWARNING: Thread 1 has stopped running!"
 
-    if not THREAD_2.is_alive():
-        Utilities.UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
+    if not Utilities.THREAD_2.is_alive():
+        UtilTextOne += "\nWARNING: Thread 2 has stopped running!"
     
-    Utilities.UtilTextOne += "recognized box center: (" + str(BoxCenterX) + ", " + str(BoxCenterY) + ")"
+    UtilTextOne += "recognized box center: (" + str(Utilities.BoxCenterX) + ", " + str(Utilities.BoxCenterY) + ")"
     
     #now set the labels
-    Thread1_Time_Text.set(Thread1TimeStats)
-    Thread2_Time_Text.set(Thread2TimeStats)
-    UtilText1.set("Thread 1: "+ Thread1Message + "\nThread 2: " + Thread2Message + "\nMain: " + UtilTextOne) #Set the thread messages
+    Thread1_Time_Text.set(Utilities.Thread1TimeStats)
+    Thread2_Time_Text.set(Utilities.Thread2TimeStats)
+    UtilText1.set("Thread 1: "+ Utilities.Thread1Message + "\nThread 2: " + Utilities.Thread2Message + "\nMain: " + UtilTextOne) #Set the thread messages
 
 def UpdateOutputImage():
     #show output image with point drawn
-    img = numpy.copy(OriginalImage) #copy the original image taken by thread 1
-    if (BoxCenterX > -1) and (BoxCenterY > -1):
-        cv2.drawContours(img, numpy.array( [[[BoxCenterX, BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
+    img = numpy.copy(Utilities.OriginalImage) #copy the original image taken by thread 1
+    if (Utilities.BoxCenterX > -1) and (Utilities.BoxCenterY > -1):
+        cv2.drawContours(img, numpy.array( [[[Utilities.BoxCenterX, Utilities.BoxCenterY]]] ), -1, (255,255,0), 5) #draw the contour center point
         
-    cv2.imshow("Output", img) # show the image in the window
-    cv2.waitKey(5)
+    #cv2.imshow("Output", img) # show the image in the window
+    #cv2.waitKey(5)
 
 
 def InitUI():
-    #first import the global tkinter utilities
-    global Master_Window
-    global Slider_High_R
-    global Slider_High_G
-    global Slider_High_B
-
-    global Slider_Low_R
-    global Slider_Low_G
-    global Slider_Low_B
-
-    global Slider_Threshold_Max
-    global Slider_Threshold_Value
-    global Slider_Nonzero_Pixels
-    global Slider_Area_Max
-    global Slider_Area_Min
-    global Slider_Solidity_High
-    global Slider_Solidity_Low
-
-    global Running_Mode_Label
-    global Thread1_Time_Label
-    global Thread2_Time_Label
-    global UtilLabel1
-                
-    global Running_Mode_Text
-    global Thread1_Time_Text
-    global Thread2_Time_Text
-    global UtilText1
                 
     print("Initializing in Developer Mode.\r\n\r\n")
     #tkinter!!!
@@ -173,4 +148,4 @@ def InitUI():
     Thread1_Time_Label.grid(row=2, column=1)
     Thread2_Time_Label.grid(row=4, column=1)
     UtilLabel1.grid(row=6, column=1)
-                    
+             

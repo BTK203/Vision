@@ -64,7 +64,7 @@ def Watch():
 
         Utilities.CheckThreadConditions()
         #send values to the RoboRIO here.
-        Utilities.sock.sendto(str(BoxCenterX) + "," +str(BoxCenterY), (UDP_IP, UDP_PORT))
+        Utilities.sock.sendto(str(Utilities.BoxCenterX) + "," +str(Utilities.BoxCenterY), (Settings.UDP_IP, Settings.UDP_PORT))
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
@@ -77,18 +77,16 @@ def Vision():
         else:
             print("Initializing in Running Mode.\r\n\r\n") #runner mode is lighter on CPU but does not give you any feedback whatsoever (it just gives you the center box point)
 
-        global THREAD_1
-        global THREAD_2
-
         print("Hello. I am the vision man.")
         print("Making Threads")
-        THREAD_1 = Thread1.Thread1(1, "Thread 1", 1) # creates and starts new thread running Thread1(), to take and process the images
-        THREAD_2 = Thread2.Thread2(2, "Thread 2", 2) # creates and starts new thread running Thread2(), to process contours and come up with a center point
+        
+        Utilities.THREAD_1 = Thread1.Thread1(1, "Thread 1", 1) # creates and starts new thread running Thread1(), to take and process the images
+        Utilities.THREAD_2 = Thread2.Thread2(2, "Thread 2", 2) # creates and starts new thread running Thread2(), to process contours and come up with a center point
 
         print("Starting Threads")
         #start the threads
-        THREAD_1.start()
-        THREAD_2.start()
+        Utilities.THREAD_1.start()
+        Utilities.THREAD_2.start()
 
         print("Starting watch loop")
         Watch() #starts master loop

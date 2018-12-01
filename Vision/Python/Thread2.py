@@ -36,7 +36,6 @@ class Thread2(threading.Thread):
             Utilities.Thread2Message += "\nAspect Ratio: " + str(AspectRatio)
         
     def GetContourData(self, contour, x,y,w,h): #returns a bunch of stuff about the contour given.
-        global Thread2Message
         Area = cv2.contourArea(contour)
         
         #getting solidity
@@ -49,13 +48,12 @@ class Thread2(threading.Thread):
         return Area, AspectRatio, Solidity
 
     def TestContour(self, Area, Solidity, AspectRatio): #tests the contour given the parameters.
-        global Thread2Message
         Thread2Message = "Tests passed: "
-        if(Area < TARGET_CONTOUR_AREA_MAX) and (Area > TARGET_CONTOUR_AREA_MIN):
+        if(Area < Settings.TARGET_CONTOUR_AREA_MAX) and (Area > Settings.TARGET_CONTOUR_AREA_MIN):
             Thread2Message += "Area"
-            if(Solidity < TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > TARGET_OBJECT_SOLIDITY_LOW):
+            if(Solidity < Settings.TARGET_OBJECT_SOLIDITY_HIGH) and (Solidity > Settings.TARGET_OBJECT_SOLIDITY_LOW):
                 Thread2Message += ", Solidity"
-                if(AspectRatio < TARGET_OBJECT_ASPECT_RATIO_HIGH) and (AspectRatio > TARGET_OBJECT_ASPECT_RATIO_LOW):
+                if(AspectRatio < Settings.TARGET_OBJECT_ASPECT_RATIO_HIGH) and (AspectRatio > Settings.TARGET_OBJECT_ASPECT_RATIO_LOW):
                     Thread2Message += ", Aspect Ratio"
                     return True
 
@@ -63,7 +61,6 @@ class Thread2(threading.Thread):
 
     #processes the contour and returns the center points
     def ProcessContour(self, x, y, w, h):
-        global Thread2Message
         w /= 2
         h /=2
         x += w
@@ -99,7 +96,7 @@ class Thread2(threading.Thread):
                 #contouring stuff
                 Thread1Image = cv2.inRange(Thread1Image, Settings.TARGET_COLOR_LOW, Settings.TARGET_COLOR_HIGH) # convert to binary
                 #DevmodeDisplayImage("Binary", TargetImage)
-                Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
+                _,Contours, Hierarchy = cv2.findContours(Thread1Image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # get them contours
 
 ##                if (DEVMODE) and (len(Contours) > 0): #it hecking slows the program down a lot tho D:<
 ##                    ThreadOneOut = numpy.zeros((500,500),numpy.uint8) # reset the threadoneout image to nothing(again)
@@ -127,7 +124,7 @@ class Thread2(threading.Thread):
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds
             Utilities.ThreadTwoTimes.append(ThreadTime)
-            Thread_Two_Last_Loop_Time = time.clock()
+            Utilities.Thread_Two_Last_Loop_Time = time.clock()
 
             if self.stop: #stops the loop and thread if the program is ending
                 print("Thread 2 terminating")

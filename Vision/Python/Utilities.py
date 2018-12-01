@@ -10,6 +10,7 @@ import Main
 import socket
 import cv2
 import numpy
+import time
 
 # --- UTILITIES -- #
 #Devmode utilities
@@ -130,6 +131,9 @@ def Thread2MinTime():
 def Kill():
     #releases some resources and stops the program
     global ProgramEnding
+    global Stream
+
+    print("The program is doing the big die")
     
     Stream.release()
 
@@ -159,7 +163,6 @@ def CheckThreadConditions():
     #some thread recovery stuff so that threads can be revived if they freeze, error out, etc
     global THREAD_1
     global THREAD_2
-    global UtilText1
     
     LastResponse1 = time.clock() - Thread_One_Last_Loop_Time
     LastResponse2 = time.clock() - Thread_Two_Last_Loop_Time
@@ -168,18 +171,18 @@ def CheckThreadConditions():
         #Thread 1 has been killed, errored out, or has frozen. Revive it.
         THREAD_1.terminate()
         time.sleep(0.1) # wait for thread to fully terminate
-        THREAD_1 = Thread1(1, "Thread 1", 1) #create and start a new thread 1
+        THREAD_1 = Thread1.Thread1(1, "Thread 1", 1) #create and start a new thread 1
         THREAD_1.start() # this one actually starts thread
 
         UtilTextOne = "MESSAGE: Thread 1 revived."
-        UtilText1.set(UtilTextOne)
+        UI.UtilText1.set(UtilTextOne)
 
     if ((not ProgramEnding) and (not THREAD_2.is_alive())) or (LastResponse2 > 1):
         #same thing for thread2. if it errors out, revive it
         THREAD_2.terminate()
         time.sleep(0.1)
-        THREAD_2 = Thread2(2, "Thread 2", 2)
+        THREAD_2 = Thread2.Thread2(2, "Thread 2", 2)
         THREAD_2.start()
 
         UtilTextOne = "MESSAGE: Thread 2 revived."
-        UtilText1.set(UtilTextOne)
+        UI.UtilText1.set(UtilTextOne)
