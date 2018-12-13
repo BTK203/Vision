@@ -55,7 +55,6 @@ class Thread1(threading.Thread):
                     #nothing significant in image. In this case just tell thread 2 not to run
                     Utilities.ImageHasContents = False
 
-                print("Thread 1 loops")
                 
             else: # Stream was unable to get the camera data. Print a message.
                 print("unable to get camera data!")

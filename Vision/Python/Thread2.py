@@ -122,7 +122,6 @@ class Thread2(threading.Thread):
                 Utilities.BoxCenterX = -1
                 Utilities.BoxCenterY = -1
 
-            print("Thread 2 loops")
                 
             ThreadTime = time.clock() - startTime
             ThreadTime *= 1000 #convert to milliseconds

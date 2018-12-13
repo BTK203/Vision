@@ -73,8 +73,6 @@ def Watch():
         Utilities.MainThreadMessage = "\nSending to the RIO: " + UDPMessage
         Utilities.sock.sendto(UDPMessage, (Settings.UDP_IP, Settings.UDP_PORT))#haha this is what actually sends it
 
-        print("main thread loops.")
-
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
