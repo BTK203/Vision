@@ -33,7 +33,6 @@ from __future__ import print_function
 import Settings
 import Thread1
 import Thread2
-import UI
 import Utilities
 
 #required packages
@@ -42,7 +41,6 @@ import cv2
 import threading
 import time
 import socket #for UDP
-import Tkinter as tk
 from decimal import *
 
 
@@ -56,16 +54,8 @@ def Watch():
 
         if Utilities.ProgramEnding: #but first lets check to see if the ending flag is up
                 print("Vision man is going away now...")
-                UI.Master_Window.destroy() # say goodbye to settings and output window
                 break #stop loop is the program ending flag is up
     
-        if Settings.DEVMODE:
-            UI.UpdateUI() #updates the UI with updated values such as box center, contour data, etc
-            UI.UpdateOutputImage() #updates the output image with the contour at the center
-        else:
-            #not devmode, we should print the coordinates out
-            print("(" + str(Utilities.BoxCenterX) + ", " + str(Utilities.BoxCenterY) + ")", end='\r')
-        
         Utilities.CheckThreadConditions()
         
         #send values to the RoboRIO.
@@ -75,21 +65,22 @@ def Watch():
             sendX = int( (Utilities.BoxCenterX / 200) * 1280 ) #scales to 720p resolution
             sendY = int( (Utilities.BoxCenterY / 200) * 720 )
 
+            #invert the coords for RIO processing
+            sendX = 1280 - sendX
+            sendY = 720 - sendY
+
         UDPMessage = str(sendX) + "," +str(sendY) #our message!
         Utilities.MainThreadMessage = "\nSending to the RIO: " + UDPMessage
-        Utilities.sock.sendto(UDPMessage, (Settings.UDP_IP, Settings.UDP_PORT)) #haha this is what actually sends it
+        Utilities.sock.sendto(UDPMessage, (Settings.UDP_IP, Settings.UDP_PORT))#haha this is what actually sends it
+
+        print("main thread loops.")
+
      
 #starts the program and creates different threads and things for the things to run on.
 def Vision():
     #start the stuff going
     if Utilities.Stream.isOpened():
         #initialize the threads
-        if Settings.DEVMODE: #gives you the good stuff, but a bit harder on the CPU
-            UI.InitUI()
-
-        else:
-            print("Initializing in Running Mode.\r\n\r\n") #runner mode is lighter on CPU but does not give you any feedback whatsoever (it just gives you the center box point)
-
         print("Hello. I am the vision man.")
         print("Making Threads")
         

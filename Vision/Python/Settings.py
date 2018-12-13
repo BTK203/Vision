@@ -3,7 +3,6 @@
 import Main
 import Thread1
 import Thread2
-import UI
 import Utilities
 
 from decimal import *
@@ -12,11 +11,11 @@ import numpy
 # - IMAGE PROCESSOR SETTINGS - #
 
 #Developer Settings
-DEVMODE = True #Option to run in developer mode. Displays all output and uses UI that allows user to change settings in runtime.
+DEVMODE = False #Option to run in developer mode. Displays all output and uses UI that allows user to change settings in runtime.
 
 #Thread one process settings
 TARGET_COLOR_LOW = numpy.array( [0,220,0] ) #low color bound (BGR)
-TARGET_COLOR_HIGH = numpy.array( [0,255,0] ) #high color bound(BGR)
+TARGET_COLOR_HIGH = numpy.array( [255,255,0] ) #high color bound(BGR)
 TARGET_NONZERO_PIXELS = 1500 #amount of non-zero pixels that need to be in the image for processing to continue. Simply to save time
 THRESHOLD_LOW = 57 # Threshold value to go by, defines how strict the thesholding function has to be
 THRESHOLD_HIGH = 255 # leave this here. Trust me.

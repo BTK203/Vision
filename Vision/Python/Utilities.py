@@ -2,7 +2,6 @@
 import Settings
 import Thread1
 import Thread2
-import UI
 import Main
 
 
@@ -178,7 +177,6 @@ def CheckThreadConditions():
         THREAD_1.start() # this one actually starts thread
 
         UtilTextOne = "MESSAGE: Thread 1 revived."
-        UI.UtilText1.set(UtilTextOne)
 
     if ((not ProgramEnding) and (not THREAD_2.is_alive())) or (LastResponse2 > 1):
         #same thing for thread2. if it stops, revive it
@@ -189,4 +187,3 @@ def CheckThreadConditions():
         THREAD_2.start()
 
         UtilTextOne = "MESSAGE: Thread 2 revived."
-        UI.UtilText1.set(UtilTextOne)
